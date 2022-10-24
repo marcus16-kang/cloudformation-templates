@@ -38,7 +38,17 @@ function Notification {
     $notifier.Show($toast);
 }
 
-Invoke-WebRequest -Uri https://github.com/marcus16-kang/cloudformation-templates/blob/main/ec2/bastion.yaml?raw=true -OutFile ./bastion.yaml
+function CreatePuTTYShortCut($PuTTYCommand) {
+    $PuTTYCommand = $PuTTYCommand.substring(6)
+
+    $WshShell = New-Object -comObject WScript.Shell
+    $Shortcut = $WshShell.CreateShortcut("$HOME\Desktop\" + $INSTANCE_NAME + ".lnk")
+    $Shortcut.TargetPath = "C:\Program Files\PuTTY\putty.exe"
+    $Shortcut.Arguments = $PuTTYCommand
+    $Shortcut.Save()
+}
+
+Invoke-WebRequest -Uri https://github.com/marcus16-kang/cloudformation-templates/blob/main/ec2/bastion/stack.yaml?raw=true -OutFile ./bastion.yaml
 
 aws cloudformation create-stack `
     --stack-name $STACK_NAME `
@@ -62,7 +72,10 @@ aws cloudformation wait stack-create-complete `
 
 Notification
 
-aws cloudformation describe-stacks `
+$PuTTYCommand = $(aws cloudformation describe-stacks `
     --stack-name $STACK_NAME `
     --query 'Stacks[0].Outputs[?OutputKey==`PuttyCommand`].OutputValue' `
-    --output text | powershell -
+    --output text)
+
+CreatePuTTYShortCut($PuTTYCommand)
+echo $PuTTYCommand | powershell -
