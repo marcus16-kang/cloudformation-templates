@@ -162,6 +162,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
       Path: /
+      RoleName: !Ref InstanceRoleName
       Tags:
         - Key: "Name"
           Value: !Ref InstanceRoleName
