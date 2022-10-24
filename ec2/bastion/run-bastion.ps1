@@ -63,7 +63,7 @@ aws cloudformation create-stack `
         ParameterKey=InstanceEIPName,ParameterValue=$INSTANCE_EIP_NAME `
         ParameterKey=InstanceSecurityGroupName,ParameterValue=$INSTANCE_SECURITY_GROUP_NAME `
         ParameterKey=InstanceRoleName,ParameterValue=$INSTANCE_ROLE_NAME `
-    --capabilities CAPABILITY_IAM `
+    --capabilities CAPABILITY_NAMED_IAM `
     --region $REGION
 
 aws cloudformation wait stack-create-complete `
