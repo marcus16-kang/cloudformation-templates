@@ -74,6 +74,7 @@ Notification
 
 $PuTTYCommand = $(aws cloudformation describe-stacks `
     --stack-name $STACK_NAME `
+    --region $REGION `
     --query 'Stacks[0].Outputs[?OutputKey==`PuttyCommand`].OutputValue' `
     --output text)
 
