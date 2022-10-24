@@ -246,5 +246,5 @@ Outputs:
     Value: !Sub
       - 'putty ec2-user@${IP} -P ${Port} -pw ${Password}'
       - IP: !Ref InstanceEIP
-      - Port: !Ref InstanceSSHPort
-      - Password: !Ref InstanceSSHPassword
+        Port: !Ref InstanceSSHPort
+        Password: !Ref InstanceSSHPassword
