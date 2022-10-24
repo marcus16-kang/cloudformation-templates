@@ -1,0 +1,249 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Bastion EC2 Instance Stack.
+
+Parameters:
+  InstanceName:
+    Type: String
+    Description: Enter the bastion server's name.
+  InstanceType:
+    Type: String
+    Description: Enter the bastion server's type.
+  InstanceVPC:
+    Type: AWS::EC2::VPC::Id
+    Description: Enter the bastion server's vpc id.
+  InstanceSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: Enter the bastion server's subnet id.
+  InstanceSSHPort:
+    Type: Number
+    Default: 22
+    Description: Enter the SSH's port.
+  InstanceSSHPassword:
+    Type: String
+    Description: Enter the SSH's password.
+  InstanceEIPName:
+    Type: String
+    Description: Enter the Elastic IP's name.
+  InstanceSecurityGroupName:
+    Type: String
+    Description: Enter the Security Group's name.
+  InstanceRoleName:
+    Type: String
+    Description: Enter the IAM Role's name.
+
+Resources:
+  # get ami
+  GetLatestAMIRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DescribeImages
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - ec2:DescribeInstanceTypes
+                  - ssm:GetParameter
+                Effect: Allow
+                Resource: "*"
+
+  GetLatestAMIFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !Sub ${GetLatestAMIRole.Arn}
+      Timeout: 10
+      Code:
+        ZipFile: |
+          from __future__ import print_function
+          import urllib3
+          import json
+          import boto3
+          import traceback
+
+          SUCCESS = "SUCCESS"
+          FAILED = "FAILED"
+
+          http = urllib3.PoolManager()
+
+
+          def send(event, context, responseStatus, responseData, physicalResourceId=None, noEcho=False, reason=None):
+              responseUrl = event['ResponseURL']
+
+              print(responseUrl)
+
+              responseBody = {
+                  'Status' : responseStatus,
+                  'Reason' : reason or "See the details in CloudWatch Log Stream: {}".format(context.log_stream_name),
+                  'PhysicalResourceId' : physicalResourceId or context.log_stream_name,
+                  'StackId' : event['StackId'],
+                  'RequestId' : event['RequestId'],
+                  'LogicalResourceId' : event['LogicalResourceId'],
+                  'NoEcho' : noEcho,
+                  'Data' : responseData
+              }
+
+              json_responseBody = json.dumps(responseBody)
+
+              print("Response body:")
+              print(json_responseBody)
+
+              headers = {
+                  'content-type' : '',
+                  'content-length' : str(len(json_responseBody))
+              }
+
+              try:
+                  response = http.request('PUT', responseUrl, headers=headers, body=json_responseBody)
+                  print("Status code:", response.status)
+
+
+              except Exception as e:
+
+                  print("send(..) failed executing http.request(..):", e)
+
+          def handler(event, context):
+              return_value = {
+                  'statusCode': 0,
+                  'body': ''
+              }
+              
+              try:
+                  arch = boto3.client('ec2').describe_instance_types(
+                      InstanceTypes=[event['ResourceProperties']['InstanceType']]
+                  )['InstanceTypes'][0]['ProcessorInfo']['SupportedArchitectures'][-1]
+                  ami = response = boto3.client('ssm').get_parameter(
+                      Name='/aws/service/ami-amazon-linux-latest/amzn2-ami-kernel-5.10-hvm-{}-gp2'.format(arch)
+                  )['Parameter']['Value']
+                  print(ami)
+                  
+                  send(event, context, SUCCESS, {'AMI': ami})
+                  
+                  return_value['statusCode'] = 200
+                  return_value['body'] = json.dumps(ami)
+              
+              except:
+                  traceback.print_last()
+                  send(event, context, FAIL, {})
+                  
+                  return_value['statusCode'] = 200
+                  return_value['body'] = json.dumps('error')
+              
+              return return_value
+  GetLatestAMI:
+    Type: Custom::FindAMI
+    Properties:
+      ServiceToken: !Sub ${GetLatestAMIFunction.Arn}
+      InstanceType: !Ref InstanceType
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+      Path: /
+      Tags:
+        - Key: "Name"
+          Value: !Ref InstanceRoleName
+  InstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: /
+      Roles:
+        - !Ref InstanceRole
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Ref InstanceSecurityGroupName
+      GroupName: !Ref InstanceSecurityGroupName
+      SecurityGroupEgress: 
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: -1
+      SecurityGroupIngress: 
+        - CidrIp: 0.0.0.0/0
+          Description: SSH
+          FromPort: !Ref InstanceSSHPort
+          ToPort: !Ref InstanceSSHPort
+          IpProtocol: tcp
+      Tags: 
+        - Key: "Name"
+          Value: !Ref InstanceSecurityGroupName
+      VpcId: !Ref InstanceVPC
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      IamInstanceProfile: !Ref InstanceProfile
+      ImageId: !GetAtt GetLatestAMI.AMI
+      SecurityGroupIds:
+        - !GetAtt InstanceSecurityGroup.GroupId
+      SubnetId: !Ref InstanceSubnet
+      InstanceType: !Ref InstanceType
+      DisableApiTermination: true
+      Tags:
+        - Key: "Name"
+          Value: !Ref InstanceName
+      UserData:
+        Fn::Base64:
+          !Join [ "", [
+          "#!/bin/bash\n",
+          "sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config\n",
+          "echo ",
+          !Ref InstanceSSHPassword,
+          " | passwd --stdin ec2-user\n",
+          "echo Port ",
+          !Ref InstanceSSHPort,
+          " >> /etc/ssh/sshd_config\n",
+          "systemctl restart sshd\n"
+          ] ]
+  
+  InstanceEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Tags:
+        - Key: "Name"
+          Value: !Ref InstanceEIPName
+  InstanceEIPAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt InstanceEIP.AllocationId
+      InstanceId: !Ref Instance
+
+Outputs:
+  AmiId:
+    Description: Instance AMI id.
+    Value: !GetAtt GetLatestAMI.AMI
+  SSHCommand:
+    Description: SSH command.
+    Value: !Sub
+      - 'ec2-user@${IP}'
+      - IP: !Ref InstanceEIP
+  SSHPassword:
+    Description: SSH password.
+    Value: !Ref InstanceSSHPassword
+  PuttyCommand:
+    Description: PuTTY command with password.
+    Value: !Sub
+      - 'putty ec2-user@${IP} -pw ${Password}'
+      - IP: !Ref InstanceEIP
+      - Password: !Ref InstanceSSHPassword
