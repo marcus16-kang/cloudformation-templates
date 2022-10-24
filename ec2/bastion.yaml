@@ -244,6 +244,7 @@ Outputs:
   PuttyCommand:
     Description: PuTTY command with password.
     Value: !Sub
-      - 'putty ec2-user@${IP} -pw ${Password}'
+      - 'putty ec2-user@${IP} -P ${Port} -pw ${Password}'
       - IP: !Ref InstanceEIP
+      - Port: !Ref InstanceSSHPort
       - Password: !Ref InstanceSSHPassword
