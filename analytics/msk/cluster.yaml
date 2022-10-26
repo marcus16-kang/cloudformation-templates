@@ -1,0 +1,130 @@
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-msk-cluster.html
+
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: A MSK Cluster using CloudFormation.
+
+Parameters:
+  ClusterName:
+    Type: String
+    Description: Cluster's Name.
+  ClusterKafkaVersion:
+    Type: String
+    Description: Cluster's Kafka Version.
+    AllowedValues:
+      - "3.2.0"
+      - "3.1.1"
+      - "2.8.1"
+      - "2.8.0"
+      - "2.7.2"
+      - "2.7.1"
+      - "2.7.0"
+      - "2.6.3"
+      - "2.6.2"
+      - "2.6.1"
+      - "2.6.0"
+      - "2.5.1"
+      - "2.4.1.1"
+      - "2.3.1"
+      - "2.2.1"
+    Default: "2.6.2"
+  ClusterBrokerNumbers:
+    Type: Number
+    Description: Cluster's Number of Broker Nodes.
+    Default: "1"
+  ClusterSubnetIDs:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Cluster's Subnet IDs.
+  ClusterSecurityGroupIDs:
+    Type: List<AWS::EC2::SecurityGroup::Id>
+    Description: Cluster's Security Group IDs.
+  ClusterInstanceType:
+    Type: String
+    Description: Cluster's Instance Type.
+    AllowedValues:
+      - t3.small
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+      - m5.4xlarge
+      - m5.8xlarge
+      - m5.12xlarge
+      - m5.16xlarge
+      - m5.24xlarge
+  BrokerEBSStorage:
+    Type: Number
+    Description: EBS Storage per Broker.
+    Default: "1000"
+    MinValue: "1"
+    MaxValue: "16384"
+
+Resources:
+  MSKClusterConfiguration:
+    Type: AWS::MSK::Configuration
+    Properties:
+      Description: Configuration of MSK Cluster.
+      Name: !Sub
+        - '${ClusterName}-configuration'
+        - ClusterName: !Ref ClusterName
+      ServerProperties: !Sub |
+        auto.create.topics.enable=false
+        default.replication.factor=3
+        min.insync.replicas=2
+        num.io.threads=8
+        num.network.threads=5
+        num.partitions=1
+        num.replica.fetchers=2
+        replica.lag.time.max.ms=30000
+        socket.receive.buffer.bytes=102400
+        socket.request.max.bytes=104857600
+        socket.send.buffer.bytes=102400
+        unclean.leader.election.enable=true
+        zookeeper.session.timeout.ms=18000
+  
+  MSKCluster:
+    Type: AWS::MSK::Cluster
+    Properties:
+      BrokerNodeGroupInfo:
+        ClientSubnets: !Ref ClusterSubnetIDs
+        ConnectivityInfo:
+          PublicAccess:
+            Type: DISABLED
+        InstanceType: !Sub
+          - 'kafka.${InstanceType}'
+          - InstanceType: !Ref ClusterInstanceType
+        SecurityGroups: !Ref ClusterSecurityGroupIDs
+        StorageInfo:
+          EBSStorageInfo:
+            ProvisionedThroughput:
+              Enabled: false
+            VolumeSize: !Ref BrokerEBSStorage
+      ClientAuthentication:
+        Sasl:
+          Iam:
+            Enabled: false
+          Scram:
+            Enabled: false
+        Tls:
+          Enabled: false
+        Unauthenticated:
+          Enabled: true
+      ClusterName: !Ref ClusterName
+      ConfigurationInfo:
+        Arn: !Ref MSKClusterConfiguration
+        Revision: 1
+      KafkaVersion: !Ref ClusterKafkaVersion
+      LoggingInfo:
+        BrokerLogs:
+          CloudWatchLogs:
+            Enabled: false
+          Firehose:
+            Enabled: false
+          S3:
+            Enabled: false
+      NumberOfBrokerNodes: !Ref ClusterBrokerNumbers
+      OpenMonitoring:
+        Prometheus:
+          JmxExporter:
+            EnabledInBroker: true
+          NodeExporter:
+            EnabledInBroker: true
