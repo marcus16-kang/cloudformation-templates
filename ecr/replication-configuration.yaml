@@ -1,0 +1,14 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Resources:
+  ReplicationConfiguration:
+    Type: AWS::ECR::ReplicationConfiguration
+    Properties:
+      ReplicationConfiguration:
+        Rules:
+          - Destinations:
+              - Region: # REGION
+                RegistryId: # ACCOUNT ID
+            # RepositoryFilters:
+            #   - Filter: # PREFIX
+            #     FilterType: PREFIX_MATCH

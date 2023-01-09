@@ -1,0 +1,41 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  RepositoryName: # REQUIRED
+    Type: String
+
+Resources:
+  EcrRepository:
+    Type: AWS::ECR::Repository
+    Properties: 
+      # EncryptionConfiguration: 
+      #   EncryptionType: AES256                # AES256(SSE-S3) or KMS(SSE-KMS)
+      #   KmsKey: arn:aws:kms:us-east-1         # KMS alias, key ID, or full ARN of AWS KMS KEY
+      # ImageScanningConfiguration: 
+      #   ScanOnPush: false                     # true of false
+      # ImageTagMutability: MUTABLE             # MUTABLE or IMMUTABLE
+      # LifecyclePolicy: 
+      #   LifecyclePolicyText: '{"rules": []}'  # JSON type
+      #   RegistryId: !Ref AWS::AccountId       # or Other AWS Account ID
+      RepositoryName: !Ref RepositoryName
+      # RepositoryPolicyText: 
+      #   Version: "2012-10-17"
+      #   Statement: 
+      #     - 
+      #       Sid: AllowPushPull
+      #       Effect: Allow
+      #       Principal: 
+      #         AWS: 
+      #           - "arn:aws:iam::123456789012:user/Bob"
+      #           - "arn:aws:iam::123456789012:user/Alice"
+      #       Action: 
+      #         - "ecr:GetDownloadUrlForLayer"
+      #         - "ecr:BatchGetImage"
+      #         - "ecr:BatchCheckLayerAvailability"
+      #         - "ecr:PutImage"
+      #         - "ecr:InitiateLayerUpload"
+      #         - "ecr:UploadLayerPart"
+      #         - "ecr:CompleteLayerUpload"
+      # Tags: 
+      #   - Key: String
+      #     Value: String

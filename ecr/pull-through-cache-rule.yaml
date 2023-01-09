@@ -1,0 +1,14 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  EcrRepositoryPrefix:
+    Type: String
+  UpstreamRegistryUrl:  # `public.ecr.aws` or `quay.io`
+    Type: String
+
+Resources:
+  EcrPullThroughCacheRule:
+    Type: AWS::ECR::PullThroughCacheRule
+    Properties:
+      EcrRepositoryPrefix: !Ref EcrRepositoryPrefix
+      UpstreamRegistryUrl: !Ref UpstreamRegistryUrl
