@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  EfsName:
+    Type: String
+  EfsSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+  EfsSubnet1:
+    Type: AWS::EC2::Subnet::Id
+  EfsSubnet2:
+    Type: AWS::EC2::Subnet::Id
+
+Resources:
+  EfsMountTarget1:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EfsFileSystem                    # [REQUIRED] file system id
+      SecurityGroups:
+        - !Ref EfsSecurityGroupId                         # [REQUIRED] security group id
+      SubnetId: !Ref EfsSubnet1                           # [REQUIRED] subnet id
+  EfsMountTarget2:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EfsFileSystem                    # [REQUIRED] file system id
+      SecurityGroups:
+        - !Ref EfsSecurityGroupId                         # [REQUIRED] security group id
+      SubnetId: !Ref EfsSubnet2                           # [REQUIRED] subnet id
+
+  EfsFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      # AvailabilityZoneName:                             # Used to create a file system that uses ONE ZONE STORAGE CLASSES.
+      BackupPolicy:
+        Status: ENABLED                                   # `ENABLED`(default) or `DISABLED`
+      BypassPolicyLockoutSafetyCheck: false               # `false`(default) or `true`
+      Encrypted: true                                     # `true`(default) or `false`
+      # FileSystemPolicy:                                 # https://marcus16-kang.github.io/aws-resources-example/Storage/EFS/01-efs-policies/
+      #   Version: '2012-10-17'
+      #   Statement:
+      #     - Effect: Allow
+      #       Principal:
+      #         AWS: "*"
+      #       Action:
+      #       - elasticfilesystem:ClientRootAccess
+      #       - elasticfilesystem:ClientWrite
+      #       - elasticfilesystem:ClientMount
+      #       Condition:
+      #         Bool:
+      #           elasticfilesystem:AccessedViaMountTarget: 'true'
+      #     - Effect: Deny
+      #       Principal:
+      #         AWS: "*"
+      #       Action: "*"
+      #       Condition:
+      #         Bool:
+      #           aws:SecureTransport: 'false'
+      FileSystemTags:
+        - Key: Name
+          Value: !Ref EfsName
+      #   - Key: String
+      #     Value: String
+      # KmsKeyId:                                         # KMS alias, key ID, or full ARN of AWS KMS KEY
+      LifecyclePolicies:
+        - TransitionToIA: AFTER_30_DAYS                   # nothing, `AFTER_1_DAY`, `AFTER_7_DAYS`, `AFTER_14_DAYS`, `AFTER_30_DAYS`, `AFTER_60_DAYS`, `AFTER_90_DAYS`
+        - TransitionToPrimaryStorageClass: AFTER_1_ACCESS # nothing, `AFTER_1_ACCESS`
+      PerformanceMode: generalPurpose                     # `generalPurpose`(default) or `maxIO` if `ThroughputMode` is set to `bursting` or `provisioned`
+      # ProvisionedThroughputInMibps: 1024                # Required if `ThroughputMode` is set to `provisioned`
+      ThroughputMode: bursting                            # `bursting`(default), `elastic` or `provisioned`
+
+Outputs:
+  EfsFileSystemId:
+    Value: !Ref EfsFileSystem
+  EfsFileSystemDns:
+    Value: !Sub
+      - ${EfsId}.efs.${Region}.amazonaws.com
+      - EfsId: !Ref EfsFileSystem
+        Region: !Ref AWS::Region

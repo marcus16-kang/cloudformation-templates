@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  CodeCommitRepositoryName:
+    Type: String
+    Description: The name of codecommit repository.
+
+Resources:
+  CodeCommitRepository:
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryName: !Ref CodeCommitRepositoryName # [REQUIRED] the name of codecommit repository.
+      # RepositoryDescription: The description of repository.
+      Tags:
+        - Key: Name
+          Value: !Ref CodeCommitRepositoryName
+        # - Key: String
+        #   Value: String
+      # Code:
+      #   BranchName: BRANCH_NAME                     # Name of initial branch.
+      #   S3:
+      #     Bucket: BUCKET_NAME                       # Name of S3 bucket.
+      #     Key: KEY_NAME                             # Name of zip file key.
+      #     ObjectVersion: VERSION_NAME               # Name of object version.
+      # Triggers:
+      #   - Branches:
+      #       - "BRANCH_NAME"
+      #       - "BRANCH_NAME_2"
+      #     CustomData: MORE_CUSTOM_DATA
+      #     DestinationArn: arn:aws:sns:us-east-1:123456789012:MyTopic  # SNS arn or Lambda function arn
+      #     Events:
+      #       - all                                     # `all`, `updateReference`, `createReference`, `deleteReference`
+      #     Name: "TRIGGER_NAME"

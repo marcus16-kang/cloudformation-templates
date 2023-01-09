@@ -1,0 +1,78 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  CodeArtifactDomainName:
+    Type: String
+    Description: The name of CodeArtifact domain.
+  CodeArtifactRepositoryName:
+    Type: String
+    Description: The name of CodeArtifact repository.
+
+Resources:
+  CodeArtifactDomain:
+    Type: AWS::CodeArtifact::Domain
+    Properties:
+      DomainName: !Ref CodeArtifactDomainName                         # [REQUIRED] The name of CodeArtifact domain
+      # EncryptionKey: arn:aws:kms:us-west-2:123456789012:key/1234... # full ARN of AWS KMS KEY
+      # PermissionsPolicyDocument:
+      #     Version: 2012-10-17
+      #     Statement:
+      #       - Action:
+      #           - codeartifact:ReadFromRepository
+      #           - codeartifact:DescribePackageVersion
+      #           - codeartifact:DescribeRepository
+      #           - codeartifact:GetPackageVersionReadme
+      #           - codeartifact:GetRepositoryEndpoint
+      #           - codeartifact:ListPackageVersionAssets
+      #           - codeartifact:ListPackageVersionDependencies
+      #           - codeartifact:ListPackageVersions
+      #           - codeartifact:ListPackages
+      #           - codeartifact:ReadFromRepository
+      #         Effect: Allow
+      #         Principal:
+      #           AWS: "arn:aws:iam::123456789012:root"
+      #         Resource: "*"
+      Tags:
+        - Key: Name
+          Value: !Ref CodeArtifactDomainName
+        # - Key: String
+        #   Value: String
+  CodeArtifactRepository:
+    Type: AWS::CodeArtifact::Repository
+    Properties:
+      # Description:
+      DomainName: !GetAtt CodeArtifactDomain.Name       # [REQUIRED] name of repository's domain
+      RepositoryName: !Ref CodeArtifactRepositoryName   # [REQUIRED] name of CodeArtifact Repository.
+      DomainOwner: !Ref AWS::AccountId                  # repository domain's account id
+      # ExternalConnections:
+      #   - public:npmjs
+      #   - public:nuget-org
+      #   - public:pypi
+      #   - public:maven-gradleplugins
+      #   - public:maven-central
+      #   - public:maven-commonsware
+      #   - public:maven-googleandroid
+      # PermissionsPolicyDocument:
+      #   Version: '2012-10-17'
+      #   Statement:
+      #     - Action:
+      #         - codeartifact:DescribePackageVersion
+      #         - codeartifact:DescribeRepository
+      #         - codeartifact:GetPackageVersionReadme
+      #         - codeartifact:GetRepositoryEndpoint
+      #         - codeartifact:ListPackageVersionAssets
+      #         - codeartifact:ListPackageVersionDependencies
+      #         - codeartifact:ListPackageVersions
+      #         - codeartifact:ListPackages
+      #         - codeartifact:ReadFromRepository
+      #       Effect: Allow
+      #       Resource: "*"
+      #       Principal:
+      #         AWS: arn:aws:iam::123456789012:root
+      # Upstreams:
+      #   - <UPSTREAM REPOSITORSY NAME>
+      Tags:
+        - Key: Name
+          Value: !Ref CodeArtifactRepositoryName
+        # - Key: String
+        #   Value: String

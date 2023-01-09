@@ -1,0 +1,39 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  KmsKeyAliasName:
+    Type: String
+    Description: Name(alias) of kms key at replica
+    AllowedPattern: ^(?!alias/aws/)([a-zA-Z0-9/_-]{1,255})$
+  PrimaryKeyArn:
+    Type: String
+    Description: Arn of primary kms key
+
+Resources:
+  KmsKey:
+    Type: AWS::KMS::ReplicaKey
+    Properties:
+      Description: An multi-Region replica key
+      PendingWindowInDays: 7                                  # `30`(default). It allows between 7 and 30 days
+      PrimaryKeyArn: !Ref PrimaryKeyArn
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action: 'kms:*'
+            Resource: '*'
+      # Tags:
+      #   - Key: 
+      #     Value: 
+  KmsKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub 'alias/${KmsKeyAliasName}'
+      TargetKeyId: !Ref KmsKey
+
+Outputs:
+  KmsKeyArn:
+    Value: !GetAtt KmsKey.Arn

@@ -1,0 +1,38 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  KmsKeyAliasName:
+    Type: String
+    Description: Name(alias) of kms key at primary
+
+Resources:
+  KmsKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: An multi-Region primary key
+      MultiRegion: true
+      EnableKeyRotation: true
+      PendingWindowInDays: 7                                  # `30`(default). It allows between 7 and 30 days
+      KeySpec: SYMMETRIC_DEFAULT
+      KeyUsage: ENCRYPT_DECRYPT
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action: 'kms:*'
+            Resource: '*'
+      # Tags:
+      #   - Key: 
+      #     Value: 
+  KmsKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub 'alias/${KmsKeyAliasName}'
+      TargetKeyId: !Ref KmsKey
+
+Outputs:
+  KmsKeyArn:
+    Value: !GetAtt KmsKey.Arn
