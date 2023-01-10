@@ -95,6 +95,8 @@
 ### Linux
 
 ``` bash
+### Download templates
+
 # Common Parameters
 GLOBAL_CLUSTER_IDENTIFIER="<global cluster name>"
 ENGINE="<database engine>"

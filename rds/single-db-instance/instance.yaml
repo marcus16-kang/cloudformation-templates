@@ -1,0 +1,252 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  AllocatedStorage:
+    Type: String
+    Description: (optional) The amount of storage in gibibytes (GiB) to be initially allocated for the database instance
+    Default: '400'
+  DBName:
+    Type: String
+    Description: (REQUIRED) The name of the database to create when the DB instance is created
+  Engine:
+    Type: String
+    Description: (REQUIRED) Engine for database (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-rds-dbcluster.html#cfn-rds-dbcluster-engine)
+    AllowedValues:
+      - mariadb
+      - mysql
+      - oracle-ee
+      - oracle-ee-cdb
+      - oracle-se2
+      - oracle-se2-cdb
+      - postgres
+      - sqlserver-ee
+      - sqlserver-se
+      - sqlserver-ex
+      - sqlserver-web
+  EngineVersion:
+    Type: String
+    Description: (REQUIRED) EngineVersion for database
+  Iops:
+    Type: Number
+    Description: (optional) The number of I/O operations per second (IOPS) that the database provisions. The value must be equal to or greater than 1000.
+    Default: '3000'
+  MaxAllocatedStorage:
+    Type: Number
+    Description: (optional) The upper limit in gibibytes (GiB) to which Amazon RDS can automatically scale the storage of the DB instance.
+    Default: '1000'
+  ParameterGroupFamily:
+    Type: String
+    Description: (REQUIRED) Familiy of parameter group
+  ParameterGroupName:
+    Type: String
+    Description: (REQUIRED) Name of database parameter group
+  OptionGroupName:
+    Type: String
+    Description: (optional) [MariaDB, MySQL, Oracle, SQL Server only] Name of database option group
+    Default: ''
+  OptionGroupMajorVersion:
+    Type: String
+    Description: (optional) [MariaDB, MySQL, Oracle, SQL Server only] Major version of option group
+    Default: ''
+  SubnetGroupName:
+    Type: String
+    Description: (REQUIRED) Name of database subnet group
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: (REQUIRED) List of database subnet ids.
+  SecurityGroupName:
+    Type: String
+    Description: (REQUIRED) Name of database security group
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: (REQUIRED) ID of database vpc.
+  InstanceClass:
+    Type: String
+    Description: (REQUIRED) Type of database instance type
+  InstanceIdentifier:
+    Type: String
+    Description: (REQUIRED) Identifier(name) used for database instance 1 (maybe writer)
+    AllowedPattern: ^[a-zA-Z][a-zA-Z0-9-]{0,62}[^-]$
+  Port:
+    Type: Number
+    Description: "(REQUIRED) Port number for database instance (MySQL: 3306, PostgreSQL: 5432, Oracle: 1521, SQLServer: 1433)"
+  MonitoringRole:
+    Type: String
+    Description: (REQUIRED) Name of database monitoring iam role.
+    Default: RDSMonitoringRole
+  KmsKeyId:
+    Type: String
+    Description: (optional) Arn of kms key for database instance
+    Default: ''
+  username:
+    NoEcho: 'true'
+    Description: (REQUIRED) Username for database access
+    Type: String
+    MinLength: '1'
+    MaxLength: '16'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters.
+  password:
+    NoEcho: 'true'
+    Description: (REQUIRED) Password for database access
+    Type: String
+    MinLength: '8'
+    MaxLength: '41'
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: must contain only alphanumeric characters.
+  DeletionProtection:
+    Type: String
+    Description: (optional) State for database deletion protection
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'false'
+
+Conditions:
+  IsMySQLorMariaDB: !Or [!Equals [!Ref Engine, mariadb], !Equals [!Ref Engine, mysql]]
+  IsPostgreSQL: !Equals [!Ref Engine, postgres]
+  IsNotPostgreSQL: !Not [!Equals [!Ref Engine, postgres]]
+  IsMSSQL: !Or [!Equals [!Ref Engine, sqlserver-ee], !Equals [!Ref Engine, sqlserver-se], !Equals [!Ref Engine, sqlserver-ex], !Equals [!Ref Engine, sqlserver-web]]
+  IsOracle: !Or [!Equals [!Ref Engine, oracle-ee], !Equals [!Ref Engine, oracle-ee-cdb], !Equals [!Ref Engine, oracle-se2], !Equals [!Ref Engine, oracle-se2-cdb]]
+  UseKmsKey: !Not
+    - !Equals
+      - !Ref KmsKeyId
+      - ''
+
+Resources:
+  RDSMonitoringRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - monitoring.rds.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole
+      RoleName: !Ref MonitoringRole
+  RDSDBParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      DBParameterGroupName: !Ref ParameterGroupName
+      Description: !Ref ParameterGroupName
+      Family: !Ref ParameterGroupFamily
+      # Parameters:
+      Tags:
+        - Key: Name
+          Value: !Ref ParameterGroupName
+        # - Key: String
+        #   Value: String
+  RDSDBOptionGroup:
+    Type: AWS::RDS::OptionGroup
+    Condition: IsNotPostgreSQL
+    Properties:
+      EngineName: !Ref Engine
+      MajorEngineVersion: !Ref OptionGroupMajorVersion
+      # OptionConfigurations: []
+      OptionGroupDescription: !Ref OptionGroupName
+      OptionGroupName: !Ref OptionGroupName
+      Tags:
+        - Key: Name
+          Value: !Ref OptionGroupName
+        # - Key: String
+        #   Value: String
+  RDSDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupName: !Ref SubnetGroupName
+      DBSubnetGroupDescription: !Ref SubnetGroupName
+      SubnetIds: !Ref Subnets
+      Tags:
+        - Key: Name
+          Value: !Ref SubnetGroupName
+        # - Key: String
+        #   Value: String
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Ref SecurityGroupName
+      GroupName: !Ref SecurityGroupName
+      SecurityGroupEgress: []                               # any traffic deny is best practice
+      Tags:
+        - Key: Name
+          Value: !Ref SecurityGroupName
+        # - Key: String
+        #   Value: String
+      VpcId: !Ref VpcId
+  RDSDBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: !Ref AllocatedStorage
+      # AssociatedRoles:
+      #   - FeatureName: 
+      #     RoleArn: 
+      AutoMinorVersionUpgrade: true                         # `true`(default) or `false`
+      BackupRetentionPeriod: 1                              # `1`(default), must be a value from 0 to 35
+      CopyTagsToSnapshot: true                              # `false`(default) or `true`
+      DBInstanceClass: !Ref InstanceClass
+      DBInstanceIdentifier: !Ref InstanceIdentifier
+      DBName: !Ref DBName
+      DBParameterGroupName: !Ref RDSDBParameterGroup
+      DBSubnetGroupName: !Ref SubnetGroupName
+      DeleteAutomatedBackups: true                          # `true`(default) or `false`
+      DeletionProtection: !Ref DeletionProtection           # `false`(default) or `true`
+      EnableCloudwatchLogsExports:
+        !If
+        - IsMySQLorMariaDB
+        - [audit, error, general, slowquery]
+        -
+          !If
+          - IsPostgreSQL
+          - [postgresql, upgrade]
+          -
+            !If
+            - IsMSSQL
+            - [agent, error]
+            -
+              !If
+              - IsOracle
+              - [alert, audit, listener, trace]
+              - []
+      EnablePerformanceInsights: true                       # `true`(default) or `false`
+      Engine: !Ref Engine
+      EngineVersion: !Ref EngineVersion
+      Iops: !Ref Iops
+      KmsKeyId: !If [UseKmsKey, !Ref KmsKeyId, !Ref AWS::NoValue]
+      MasterUsername: !Ref username
+      MasterUserPassword: !Ref password
+      MaxAllocatedStorage: !Ref MaxAllocatedStorage
+      MonitoringInterval: 60                                # `0`, `1`, `5`, `10`, `15`, `30`, `60`(default)
+      MonitoringRoleArn: !GetAtt RDSMonitoringRole.Arn
+      MultiAZ: false
+      NetworkType: IPV4                                     # `IPV4`(default) or `DUAL`
+      OptionGroupName: !If [IsNotPostgreSQL, !Ref RDSDBOptionGroup, !Ref AWS::NoValue]
+      PerformanceInsightsKMSKeyId: !If [UseKmsKey, !Ref KmsKeyId, !Ref AWS::NoValue]
+      PerformanceInsightsRetentionPeriod: 7                 # `7`(default). Valid values are 7 to 731(2 years)
+      Port: !Ref Port
+      PreferredBackupWindow: 17:00-17:30                    # UTC, must be at least 30 minutes
+      PreferredMaintenanceWindow: sun:17:30-sun:18:00       # UTC, must be at least 30 minutes
+      PubliclyAccessible: false                             # `false`(default) or `true`
+      StorageEncrypted: true                                # `false`(default) or `true`
+      StorageType: io1                                      # `io1`(default), `gp2`, `gp3`, `standard`(magnetic)
+      Tags:
+        - Key: Name
+          Value: !Ref InstanceIdentifier
+        # - Key: String
+        #   Value: String
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+
+Outputs:
+  DBInstanceEndpointAddress:
+    Value: !GetAtt RDSDBInstance.Endpoint.Address
+  DBInstanceEndpointPort:
+    Value: !GetAtt RDSDBInstance.Endpoint.Port
+  DBMonitoringRoleArn:
+    Value: !GetAtt RDSMonitoringRole.Arn
+  DBInstanceIdentifier:
+    Value: !Ref RDSDBInstance
