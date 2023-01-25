@@ -1,0 +1,284 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ParameterGroupFamily:
+    Type: String
+    Description: (REQUIRED) The familiy of parameter group
+    AllowedValues:
+      - redis2.6
+      - redis2.8
+      - redis3.2
+      - redis4.0
+      - redis5.0
+      - redis6.x
+      - redis7
+      - memcached1.4
+      - memcached1.5
+      - memcached1.6
+    Default: redis7
+  ParameterGroupName:
+    Type: String
+    Description: (REQURIED) The name of parameter group
+  SubnetGroupName:
+    Type: String
+    Description: (REQURIED) The name of subnet group
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: (REQUIRED) The subnet ids of subnet group
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: (REQUIRED) The vpc id of cache cluster
+  SecurityGroupName:
+    Type: String
+    Description: (REQUIRED) The security group name of cache cluster
+  AutoMinorVersionUpgrade:
+    Type: String
+    Description: (optional) Enable or disable auto minor version update (only Redis 6.0 or later)
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'true'
+  CacheNodeType:
+    Type: String
+    Description: (REQUIRED) The instance type of cache node.
+    Default: 'cache.r6g.large'
+  Engine:
+    Type: String
+    Description: (REQUIRED) The engine type of cache cluster.
+    AllowedValues:
+      - redis
+      - memcached
+    Default: redis
+  EngineVersion:
+    Type: String
+    Description: (REQUIRED) The engine version of cache cluster.
+    AllowedValues:
+      - '7.0'
+      - '6.2'
+      - '6.0'
+      - '5.0.6'
+      - '5.0.5'
+      - '5.0.4'
+      - '5.0.3'
+      - '5.0.0'
+      - '4.0.10'
+      - '3.2.6'
+      - '3.2.4'
+      - '3.2.10'
+      - '2.8.6'
+      - '2.8.24'
+      - '2.8.23'
+      - '2.8.22'
+      - '2.8.21'
+      - '2.8.19'
+      - '2.6.13'  # redis
+      - '1.6.6'   # memcached
+      - '1.6.12'
+      - '1.5.16'
+      - '1.5.10'
+      - '1.4.5'
+      - '1.4.34'
+      - '1.4.33'
+      - '1.4.24'
+      - '1.4.14'
+    Default: '7.0'
+  IpDiscovery:
+    Type: String
+    Description: (optional) The network type you choose when creating a replication group, either ipv4 | ipv6. IPv6 is supported for workloads using Redis engine version 6.2 onward or Memcached engine version 1.6.6 on all instances built on the Nitro system.
+    AllowedValues:
+      - ipv4
+      - ipv6
+    Default: ipv4
+  KmsKeyId:
+    Type: String
+    Description: (optional) The KMS Id to use encryption.
+    Default: ''
+  SlowLogDestinationName:
+    Type: String
+    Description: (optional) The name of cache cluster slow log destination.
+    Default: ''
+  EngineLogDestinationName:
+    Type: String
+    Description: (optional) The name of cache cluster engine log destination.
+    Default: ''
+  NetworkType:
+    Type: String
+    Description: (optional) The type of cache cluster network type.
+    AllowedValues:
+      - ipv4
+      - ipv6
+      - dual_stack
+    Default: ipv4
+  Port:
+    Type: Number
+    Description: '(REQUIRED) The number of cache cluster port (Redis: 6379, Memcached: 11211).'
+    Default: '6379'
+  ReplicasPerNodeGroup:
+    Type: Number
+    Description: (optional) The number of the cache replicas per node group.
+    Default: '3'
+  ReplicationGroupId:
+    Type: String
+    Description: '(REQUIRED) The name of cache cluster replication group.'
+  TransitEncryptionEnabled:
+    Type: String
+    Description: '(optional) Enable or disable the cache cluster transit encryption.'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'false'
+
+Conditions:
+  UseKmsKey: !Not [!Equals [!Ref KmsKeyId, '']]
+
+  IsRedis: !Equals [!Ref Engine, redis]
+  IsRedis6orLater: !Or [!Equals [!Ref Engine, mariadb], !Equals [!Ref Engine, mysql]]
+  IsSlowLogHasExistedDestinationName: !Not [!Equals [!Ref SlowLogDestinationName, '']]
+  IsEngineLogHasExistedDestinationName: !Not [!Equals [!Ref EngineLogDestinationName, '']]
+
+Resources:
+  SlowLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      # KmsKeyId: 
+      LogGroupName: !If
+        - IsSlowLogHasExistedDestinationName
+        - !Ref SlowLogDestinationName
+        - !Sub
+          - /aws/elasticache/${ReplicationGroupId}/slow-log
+          - { ReplicationGroupId: !Ref ReplicationGroupId }
+      RetentionInDays: 90                                         # 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 2192, 2557, 2922, 3288, and 3653
+      Tags:
+        - Key: Name
+          Value: !If
+            - IsSlowLogHasExistedDestinationName
+            - !Ref SlowLogDestinationName
+            - !Sub
+              - /aws/elasticache/${ReplicationGroupId}/slow-log
+              - { ReplicationGroupId: !Ref ReplicationGroupId }
+        # - Key: String
+        #   Value: String
+  EngineLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      # KmsKeyId: 
+      LogGroupName: !If
+        - IsEngineLogHasExistedDestinationName
+        - !Ref EngineLogDestinationName
+        - !Sub
+          - /aws/elasticache/${ReplicationGroupId}/engine-log
+          - { ReplicationGroupId: !Ref ReplicationGroupId }
+      RetentionInDays: 90                                         # 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 2192, 2557, 2922, 3288, and 3653
+      Tags:
+        - Key: Name
+          Value: !If
+            - IsEngineLogHasExistedDestinationName
+            - !Ref EngineLogDestinationName
+            - !Sub
+              - /aws/elasticache/${ReplicationGroupId}/engine-log
+              - { ReplicationGroupId: !Ref ReplicationGroupId }
+        # - Key: String
+        #   Value: String
+  ParameterGroup:
+    Type: AWS::ElastiCache::ParameterGroup
+    Properties:
+      CacheParameterGroupFamily: !Ref ParameterGroupFamily
+      Description: !Ref ParameterGroupName
+      # Properties:
+      #   cas_disabled: '1'
+      #   chunk_size_growth_factor: '1.02'
+      Tags:
+        - Key: Name
+          Value: !Ref ParameterGroupName
+        # - Key: String
+        #   Value: String
+  SubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      CacheSubnetGroupName: !Ref SubnetGroupName
+      Description: !Ref SubnetGroupName
+      SubnetIds: !Ref SubnetIds
+      Tags:
+        - Key: Name
+          Value: !Ref SubnetGroupName
+        # - Key: String
+        #   Value: String
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Ref SecurityGroupName
+      GroupName: !Ref SecurityGroupName
+      SecurityGroupEgress: []                               # any traffic deny is best practice
+      Tags:
+        - Key: Name
+          Value: !Ref SecurityGroupName
+        # - Key: String
+        #   Value: String
+      VpcId: !Ref VpcId
+  
+  ReplicationGroup:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      AtRestEncryptionEnabled: true                               # `true` or `false`(default)
+      AutomaticFailoverEnabled: true                              # `true` or `false`(default)
+      AutoMinorVersionUpgrade: true                               # `true`(default) or `false`, Redis engine version 6.0 or later
+      CacheNodeType: !Ref CacheNodeType
+      CacheParameterGroupName: !Ref ParameterGroup
+      CacheSubnetGroupName: !Ref SubnetGroup
+      # DataTieringEnabled: true                                  # `true` using r6gd node type
+      Engine: !Ref Engine
+      EngineVersion: !Ref EngineVersion
+      IpDiscovery: !Ref IpDiscovery
+      KmsKeyId: !If [UseKmsKey, !Ref KmsKeyId, !Ref AWS::NoValue]
+      LogDeliveryConfigurations:
+        - DestinationDetails:
+            CloudWatchLogsDetails:
+              LogGroup: !Ref SlowLogGroup
+            # KinesisFirehoseDetails:
+            #   DeliveryStream: String
+          DestinationType: cloudwatch-logs                        # `cloudwatch-logs`(default) or `kinesis-firehose`
+          LogFormat: json                                         # `json`(default) or `text`
+          LogType: slow-log
+        - DestinationDetails:
+            CloudWatchLogsDetails:
+              LogGroup: !Ref EngineLogGroup
+            # KinesisFirehoseDetails:
+            #   DeliveryStream: String
+          DestinationType: cloudwatch-logs                        # `cloudwatch-logs`(default) or `kinesis-firehose`
+          LogFormat: json                                         # `json`(default) or `text`
+          LogType: engine-log
+      MultiAZEnabled: true
+      NetworkType: !Ref NetworkType                               # `ipv4`(default), `ipv6`, or `dual_stack`
+      # NumCacheClusters: 2
+      NumNodeGroups: 1
+      Port: !Ref Port
+      PreferredMaintenanceWindow: sun:17:00-sun:18:00             # UTC, Preferred window must be at least 60 minutes.
+      ReplicasPerNodeGroup: 1
+      ReplicationGroupDescription: !Ref ReplicationGroupId
+      ReplicationGroupId: !Ref ReplicationGroupId
+      SecurityGroupIds:
+        - !GetAtt SecurityGroup.GroupId
+      SnapshotRetentionLimit: !If
+        - IsRedis
+        - 1
+        - !Ref AWS::NoValue
+      SnapshotWindow: !If
+        - IsRedis
+        - 18:00-19:00                                             # UTC, Snapshot window must be at least 60 minutes.
+        - !Ref AWS::NoValue
+      Tags:
+        - Key: Name
+          Value: !Ref ReplicationGroupId
+        # - Key: String
+        #   Value: String      
+      TransitEncryptionEnabled: !Ref TransitEncryptionEnabled     # `false`(default) or `true`
+
+Outputs:
+  PrimaryEndpointAddress:
+    Value: !GetAtt ReplicationGroup.PrimaryEndPoint.Address
+  PrimaryEndpointPort:
+    Value: !GetAtt ReplicationGroup.PrimaryEndPoint.Port
+  ReaderEndPointAddress:
+    Value: !GetAtt ReplicationGroup.ReaderEndPoint.Address
+  ReaderEndPointPort:
+    Value: !GetAtt ReplicationGroup.ReaderEndPoint.Port

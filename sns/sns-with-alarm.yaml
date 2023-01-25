@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  TopicName:
+    Type: String
+    Description: "[REQUIRED] The name of SNS topic."
+  AlarmName:
+    Type: String
+    Description: "[optional] The name of CloudWatch alarm for SNS topic."
+
+Conditions:
+  UseAlarmName: !Not [!Equals [!Ref AlarmName, ""]]
+
+Resources:
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Ref TopicName
+      TopicName: !Ref TopicName
+  Alarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: true
+      AlarmName: !If
+        - UseAlarmName
+        - !Ref AlarmName
+        - !Sub
+          - ${Name}-alarm
+          - { Name: !Ref TopicName }
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      DatapointsToAlarm: 1
+      Dimensions:
+        - Name: TopicName
+          Value: !GetAtt Topic.TopicName
+      EvaluationPeriods: 1
+      MetricName: NumberOfMessagesPublished
+      Namespace: AWS/SNS
+      Period: 60
+      Statistic: Sum
+      Threshold: 1
+  
+  # sns-notification-logging.yaml
+  #
+  # SnsNitificationLoggingStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: TEMPLATE_URL
+  #     Parameters:
+  #       RoleName: SNS_NOTIFICATION_LOGGING_ROLE_NAME
+  #       FunctionName: SNS_NOTIFICATION_LOGGING_FUNCTION_NAME
+  #       LoggingConfiguration: SNS_NOTIFICATION_LOGGING_CONFIGURATION
+  #     TimeoutInMinutes: 10
+  # Subscription:
+  #   Type: AWS::SNS::Subscription
+  #   Properties:
+  #     Endpoint: !GetAtt SnsNitificationLoggingStack.Outputs.FunctionArn
+  #     Protocol: lambda
+  #     TopicArn: !Ref Topic
+
+Outputs:
+  TopicArn:
+    Value: !Ref Topic
+  AlarmArn:
+    Value: !Ref Alarm

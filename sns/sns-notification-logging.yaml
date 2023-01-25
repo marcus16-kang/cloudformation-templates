@@ -1,0 +1,136 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  RoleName:
+    Type: String
+    Description: "[optional] The name of Lambda function's IAM role."
+    Default: 'sns-logging-role'
+  FunctionName:
+    Type: String
+    Description: "[optional] The name of Lambda function."
+    Default: 'sns-logging-function'
+  LoggingConfiguration:
+    Type: String
+    Description: "[optional] The configuration of SNS logging." # {"topic-name": {"log_group": "log_group_name", "log_stream": "log_stream_name"}}
+    Default: ''
+
+Resources:
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Path: /
+      RoleName: !Ref RoleName
+      Tags:
+        - Key: 'Name'
+          Value: !Ref RoleName
+  Function:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: |
+          import os
+          import json
+          import boto3
+          import time
+          import botocore.client
+          from datetime import datetime
+
+          def config_log_group(log_group: str, client: botocore.client.BaseClient):
+              response = client.describe_log_groups(logGroupNamePrefix=log_group)
+              
+              log_group_list = [item['logGroupName'] for item in response['logGroups']]
+              
+              if log_group in log_group_list:   # log group already exists
+                  pass
+              else:                       # create new log group
+                  client.create_log_group(logGroupName=log_group)
+
+          def config_log_stream(log_group: str, log_stream: str, client: botocore.client.BaseClient):
+              response = client.describe_log_streams(logGroupName=log_group, logStreamNamePrefix=log_stream)
+              
+              log_stream_name = [item['logStreamName'] for item in response['logStreams']]
+              
+              if log_stream in log_stream_name:   # log stream already exists
+                  pass
+              else:                       # create new log stream
+                  client.create_log_stream(logGroupName=log_group, logStreamName=log_stream)
+
+          def put_log(log_group: str, log_stream: str, message: str, timestamp: str, client: botocore.client.BaseClient):
+              timestamp = int(time.mktime(datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ").timetuple())) * 1000
+              
+              response = client.put_log_events(
+                  logGroupName=log_group,
+                  logStreamName=log_stream,
+                  logEvents=[
+                      {
+                          'timestamp': timestamp,
+                          'message': message
+                      },
+                  ],
+              )
+              
+          def lambda_handler(event, context):
+              client = boto3.client('logs')
+              sns = event['Records'][0]['Sns']
+              
+              topic_name = sns['TopicArn'].split(':')[-1]
+              message = sns['Message']
+              timestamp = sns['Timestamp']
+              
+              log_group = '/aws/sns'  # default log group name
+              log_stream = topic_name # default log stream name
+              
+              config_env = os.getenv('SNS_CONFIG', None)
+              
+              config = json.loads(config_env) if config_env else {}
+              
+              if config.get(topic_name, None):    # config has specific topic configuration
+                  # config log group name
+                  if config[topic_name].get('log_group', None):
+                      log_group = config[topic_name]['log_group']
+                  else:
+                      pass
+                  
+                  # config log stream name
+                  if config[topic_name].get('log_stream', None):
+                      log_stream = config[topic_name]['log_stream']
+                  else:
+                      pass
+                  
+              
+              print(log_group, log_stream)
+              
+              config_log_group(log_group, client)
+              config_log_stream(log_group, log_stream, client)
+              put_log(log_group, log_stream, message, timestamp, client)
+              
+              
+              return {
+                  'statusCode': 200
+              }
+      Environment:
+        Variables:
+          SNS_CONFIG: !Ref LoggingConfiguration
+      FunctionName: !Ref FunctionName
+      Handler: index.lambda_handler
+      PackageType: Zip
+      Role: !GetAtt Role.Arn
+      Runtime: python3.9
+      Timeout: 10
+
+Outputs:
+  RoleArn:
+    Value: !GetAtt Role.Arn
+  FunctionArn:
+    Value: !GetAtt Function.Arn
