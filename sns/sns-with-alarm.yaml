@@ -7,9 +7,13 @@ Parameters:
   AlarmName:
     Type: String
     Description: "[optional] The name of CloudWatch alarm for SNS topic."
+  TemplateBucketName:
+    Type: String
+    Description: "[optional] The name of template's S3 bucket."
 
 Conditions:
   UseAlarmName: !Not [!Equals [!Ref AlarmName, ""]]
+  UseNotificationLogging: !Not [!Equals [!Ref TemplateBucketName, ""]]
 
 Resources:
   Topic:
@@ -39,23 +43,33 @@ Resources:
       Statistic: Sum
       Threshold: 1
   
-  # sns-notification-logging.yaml
-  #
-  # SnsNitificationLoggingStack:
-  #   Type: AWS::CloudFormation::Stack
-  #   Properties:
-  #     TemplateURL: TEMPLATE_URL
-  #     Parameters:
-  #       RoleName: SNS_NOTIFICATION_LOGGING_ROLE_NAME
-  #       FunctionName: SNS_NOTIFICATION_LOGGING_FUNCTION_NAME
-  #       LoggingConfiguration: SNS_NOTIFICATION_LOGGING_CONFIGURATION
-  #     TimeoutInMinutes: 10
-  # Subscription:
-  #   Type: AWS::SNS::Subscription
-  #   Properties:
-  #     Endpoint: !GetAtt SnsNitificationLoggingStack.Outputs.FunctionArn
-  #     Protocol: lambda
-  #     TopicArn: !Ref Topic
+  SnsNotificationLoggingStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: UseNotificationLogging
+    Properties:
+      TemplateURL: !Sub https://${TemplateBucketName}.s3.amazonaws.com/cloudformation-templates/sns/sns-notification-logging.yaml # https://github.com/marcus16-kang/cloudformation-templates/blob/main/sns/sns-notification-logging.yaml
+      # Parameters:
+      #   RoleName: SNS_NOTIFICATION_LOGGING_ROLE_NAME
+      #   FunctionName: SNS_NOTIFICATION_LOGGING_FUNCTION_NAME
+      #   LoggingConfiguration: SNS_NOTIFICATION_LOGGING_CONFIGURATION
+      TimeoutInMinutes: 10
+  Subscription:
+    Type: AWS::SNS::Subscription
+    Condition: UseNotificationLogging
+    DependsOn: SnsNotificationLoggingStack
+    Properties:
+      Endpoint: !GetAtt SnsNotificationLoggingStack.Outputs.FunctionArn
+      Protocol: lambda
+      TopicArn: !Ref Topic
+  LambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: UseNotificationLogging
+    DependsOn: SnsNotificationLoggingStack
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt SnsNotificationLoggingStack.Outputs.FunctionArn
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref Topic
 
 Outputs:
   TopicArn:
