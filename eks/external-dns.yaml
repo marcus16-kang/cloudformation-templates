@@ -1,0 +1,132 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: External DNS for EKS Cluster.
+
+Parameters:
+  ClusterName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS cluster."
+  
+  ClusterOidcProvider:
+    Type: String
+    Description: "[REQUIRED] The IAM OIDC Provider for EKS cluster."
+
+  ClusterOidcIssuerUrl:
+    Type: String
+    Description: "[REQUIRED] The OIDC Issuer URL of EKS cluster." 
+
+  ExternalDnsRoleName:
+    Type: String
+    Description: "[optional] The name of External DNS's IAM Role."
+    Default: ""
+  
+  ServiceAccountRoleConfigArn:
+    Type: String
+    Description: "[REQUIRED] The ARN of ServiceAccountRoleConfigFunction."
+
+Conditions:
+  UseExternalDnsRoleName: !Not [!Equals [!Ref ExternalDnsRoleName, ""]]
+
+Resources:
+  ExternalDnsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref ClusterOidcProvider
+            Action:
+              - "sts:AssumeRoleWithWebIdentity"
+      Path: /
+      Policies:
+        - PolicyName: AllowExternalDNSUpdates
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - route53:ChangeResourceRecordSets
+                Resource: arn:aws:route53:::hostedzone/*
+              - Effect: Allow
+                Action:
+                  - route53:ListHostedZones
+                  - route53:ListResourceRecordSets
+                Resource: "*"
+      RoleName: !If
+        - UseExternalDnsRoleName
+        - !Ref ExternalDnsRoleName
+        - !Sub "${ClusterName}-external-dns-role"
+      Tags:
+        - Key: Name
+          Value: !If
+            - UseExternalDnsRoleName
+            - !Ref ExternalDnsRoleName
+            - !Sub "${ClusterName}-external-dns-role"
+        - Key: project
+          Value: !Ref ProjectName
+
+  ExternalDnsRoleConfig:
+    Type: Custom::ServiceAccountRoleConfig
+    DependsOn: ExternalDnsRole
+    Properties:
+      ServiceToken: !GetAtt ServiceAccountRoleConfigFunction.Arn
+      RoleName: !Ref ExternalDnsRole
+      OidcIssuerUrl: !Ref ClusterOidcIssuerUrl
+      OidcArn: !Ref ClusterOidcProvider
+      Namespace: external-dns
+      ServiceAccount: external-dns
+
+  ExternalDnsNamespace:
+    Type: AWSQS::Kubernetes::Resource
+    DependsOn: ExternalDnsRoleConfig
+    Properties:
+      ClusterName: !Ref ClusterName
+      Namespace: kube-system
+      Manifest: |
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: external-dns
+
+  ExternalDnsServiceAccount:
+    Type: AWSQS::Kubernetes::Resource
+    DependsOn: ExternalDnsNamespace
+    Properties:
+      ClusterName: !Ref ClusterName
+      Namespace: external-dns
+      Manifest: !Sub
+        - |
+          apiVersion: v1
+          kind: ServiceAccount
+          metadata:
+            name: external-dns
+            namespace: external-dns
+            annotations:
+              eks.amazonaws.com/role-arn: ${external_dns_role}
+              meta.helm.sh/release-name: external-dns
+              meta.helm.sh/release-namespace: external-dns
+            labels:
+              app.kubernetes.io/managed-by: Helm
+        - external_dns_role: !GetAtt ExternalDnsRole.Arn
+
+  ExternalDnsHelmChart:
+    Type: AWSQS::Kubernetes::Helm
+    DependsOn: ExternalDnsServiceAccount
+    Properties:
+      ClusterID: !Ref ClusterName
+      Name: external-dns
+      Namespace: external-dns
+      Repository: https://kubernetes-sigs.github.io/external-dns/
+      Chart: external-dns/external-dns
+      ValueYaml: |
+        serviceAccount.create: false
+        serviceAccount.name: external-dns
+        rbac.create: 'true'
+        provider: aws
+        policy: sync
+        registry: txt
+        txtOwnerId: external-dns
+        extraArgs:
+          - --aws-zone-type=private

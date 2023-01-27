@@ -1,0 +1,163 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Resources:
+  ServiceAccountRoleConfigRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/IAMFullAccess
+  
+  ServiceAccountRoleConfigFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt ServiceAccountRoleConfigRole.Arn
+      Timeout: 10
+      Code:
+        ZipFile: |
+          from __future__ import print_function
+          import urllib3
+          import json
+          import boto3
+          import traceback
+
+          SUCCESS = "SUCCESS"
+          FAILED = "FAILED"
+
+          http = urllib3.PoolManager()
+
+          class NoValueError(Exception):
+              def __init__(self, *args: object) -> None:
+                  super().__init__(*args)
+
+
+          def send(event, context, responseStatus, responseData, physicalResourceId=None, noEcho=False, reason=None):
+              responseUrl = event['ResponseURL']
+
+              print(responseUrl)
+
+              responseBody = {
+                  'Status' : responseStatus,
+                  'Reason' : reason or "See the details in CloudWatch Log Stream: {}".format(context.log_stream_name),
+                  'PhysicalResourceId' : physicalResourceId or context.log_stream_name,
+                  'StackId' : event['StackId'],
+                  'RequestId' : event['RequestId'],
+                  'LogicalResourceId' : event['LogicalResourceId'],
+                  'NoEcho' : noEcho,
+                  'Data' : responseData
+              }
+
+              json_responseBody = json.dumps(responseBody)
+
+              print("Response body:")
+              print(json_responseBody)
+
+              headers = {
+                  'content-type' : '',
+                  'content-length' : str(len(json_responseBody))
+              }
+
+              try:
+                  response = http.request('PUT', responseUrl, headers=headers, body=json_responseBody)
+                  print("Status code:", response.status)
+
+
+              except Exception as e:
+
+                  print("send(..) failed executing http.request(..):", e)
+
+          def lambda_handler(event, context):
+              print(event)
+
+              if event['RequestType'] == 'Delete':
+                  send(event, context, SUCCESS, {}, None)
+              
+              else:
+                  try:
+                      client = boto3.client('iam')
+
+                      role_name = event['ResourceProperties'].get('RoleName', None)
+                      oidc_issuer_url = event['ResourceProperties'].get('OidcIssuerUrl')
+                      oidc_arn = event['ResourceProperties'].get('OidcArn')
+                      namespace = event['ResourceProperties'].get('Namespace', None)
+                      serviceaccount = event['ResourceProperties'].get('ServiceAccount', None)
+
+                      if not role_name:
+                          raise NoValueError('RoleName')
+                      else:
+                          client.get_role(RoleName=role_name)
+
+                      if not oidc_issuer_url:
+                          raise NoValueError('OidcIssuerUrl')
+
+                      if not oidc_arn:
+                          raise NoValueError('OidcArn')
+
+                      if not namespace:
+                          raise NoValueError('Namespace')
+
+                      if not serviceaccount:
+                          raise NoValueError('ServiceAccount')
+
+
+                      
+                      oidc_issuer_url = oidc_issuer_url.replace('https://', '')
+
+                      policy_document = {
+                          'Version': '2012-10-17',
+                          'Statement': [
+                              {
+                                  'Effect': 'Allow',
+                                  'Principal': {
+                                      'Federated': oidc_arn
+                                  },
+                                  'Action': 'sts:AssumeRoleWithWebIdentity',
+                                  'Condition': {
+                                      'StringEquals': {
+                                          f'{oidc_issuer_url}:aud': 'sts.amazonaws.com',
+                                          f'{oidc_issuer_url}:sub': f'system:serviceaccount:{namespace}:{serviceaccount}'
+                                      }
+                                  }
+                              }
+                          ]
+                      }
+
+                      client.update_assume_role_policy(
+                          RoleName=role_name,
+                          PolicyDocument=json.loads(policy_document)
+                      )
+
+                      send(event, context, SUCCESS, {}, None)
+                  
+                  except NoValueError as e:
+                      send(event, context, FAILED, {}, None, reason=f"Cannot found value '{e}'.")
+                  
+                  except client.exceptions.NoSuchEntityException:
+                      send(event, context, FAILED, {}, None, reason=f"Cannot found IAM role '{role_name}'.")
+                  
+                  except Exception as e:
+                      print(str(e))
+                      traceback.print_exc()
+                      send(event, context, FAILED, {}, None)
+  
+  ServiceAccountRoleConfig:
+    Type: Custom::ExecuteLambda
+    Properties:
+      ServiceToken: !GetAtt ServiceAccountRoleConfigFunction.Arn
+      RoleName: "testsetset"
+      OidcIssuerUrl:
+      OidcArn
+      Namespace
+      ServiceAccount

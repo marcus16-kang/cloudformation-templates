@@ -1,0 +1,89 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: Addons(core-dns, kube-proxy, vpc-cni) for EKS cluster's resources.
+
+Parameters:
+  ClusterName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS cluster."
+  
+  ClusterOidcProvider:
+    Type: String
+    Description: "[REQUIRED] The IAM OIDC Provider for EKS cluster."
+
+  ClusterOidcIssuerUrl:
+    Type: String
+    Description: "[REQUIRED] The OIDC Issuer URL of EKS cluster."
+
+  VpcCniRoleName:
+    Type: String
+    Description: "[optional] The name of vpc-cni's IAM Role."
+    Default: ""
+  
+  ServiceAccountRoleConfigArn:
+    Type: String
+    Description: "[REQUIRED] The ARN of ServiceAccountRoleConfigFunction."
+
+Conditions:
+  UseVpcCniRoleName: !Not [!Equals [!Ref VpcCniRoleName, ""]]
+
+Resources:
+  CoreDnsAddon:
+    Type: AWS::EKS::Addon
+    Properties:
+      AddonName: coredns
+      ClusterName: !Ref ClusterName
+      ResolveConflicts: OVERWRITE
+
+  KubeProxyAddon:
+    Type: AWS::EKS::Addon
+    Properties:
+      AddonName: kube-proxy
+      ClusterName: !Ref ClusterName
+      ResolveConflicts: OVERWRITE
+
+  VpcCniRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref ClusterOidcProvider
+            Action:
+              - "sts:AssumeRoleWithWebIdentity"
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+      RoleName: !If
+        - UseVpcCniRoleName
+        - !Ref VpcCniRoleName
+        - !Sub "${ClusterName}-vpc-cni-role"
+      Tags:
+        - Key: Name
+          Value: !If
+            - UseVpcCniRoleName
+            - !Ref VpcCniRoleName
+            - !Sub "${ClusterName}-vpc-cni-role"
+        - Key: project
+          Value: !Ref ProjectName
+
+  VpcCniRoleConfig:
+    Type: Custom::ServiceAccountRoleConfig
+    Properties:
+      ServiceToken: !Ref ServiceAccountRoleConfigArn
+      RoleName: !Ref VpcCniRole
+      OidcIssuerUrl: ClusterOidcIssuerUrl
+      OidcArn: !Ref ClusterOidcProvider
+      Namespace: kube-system
+      ServiceAccount: aws-node
+
+  VpcCniAddon:
+    Type: AWS::EKS::Addon
+    DependsOn: VpcCniRoleConfig
+    Properties:
+      AddonName: vpc-cni
+      ClusterName: !Ref ClusterName
+      ResolveConflicts: OVERWRITE
+      ServiceAccountRoleArn: !GetAtt VpcCniRole.Arn

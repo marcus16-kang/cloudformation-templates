@@ -1,0 +1,16 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: Horizontal Pod Autoscaler for EKS cluster.
+
+Parameters:
+  ClusterName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS cluster."
+
+Resources:
+  HorizontalPodAutoscalerResources:
+    Type: AWSQS::Kubernetes::Resource
+    Properties:
+      ClusterName: !Ref ClusterName
+      Namespace: kube-system
+      Url: https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
