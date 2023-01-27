@@ -1,0 +1,151 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ClusterName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS cluster."
+  IpFamily:
+    Type: String
+    Description: "[REQUIRED] The type of EKS cluster's IP family."
+    AllowedValues:
+      - ipv4
+      - ipv6
+    Default: ipv4
+  SecretKmsKeyArn:
+    Type: String
+    Description: "[optional] The arn of KMS key to encrypt kubernetes secrets."
+  AdditionalSecurityGroupName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS cluster's additional Security Group."
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: "[REQUIRED] The id of EKS cluster's VPC."
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: "[REQUIRED] The id of EKS cluster's Subnets."
+  ClusterRoleName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS cluster's IAM Role."
+  ClusterVersion:
+    Type: String
+    Description: "[REQUIRED] The version of EKS cluster."
+    AllowedValues:
+      - "1.21"
+      - "1.22"
+      - "1.23"
+      - "1.24"
+    Default: "1.24"
+
+Conditions:
+  UseKms: !Not [!Equals [!Ref SecretKmsKeyArn, ""]]
+
+Resources:
+  AdditionalSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Ref AdditionalSecurityGroupName
+      GroupName: !Ref AdditionalSecurityGroupName
+      Tags:
+        - Key: Name
+          Value: !Ref AdditionalSecurityGroupName
+        - Key: project
+          Value: !Ref ProjectName
+      VpcId: !Ref VpcId
+  ClusterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - eks.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+      RoleName: !Ref ClusterRoleName
+      Tags:
+        - Key: Name
+          Value: !Ref ClusterRoleName
+        - Key: project
+          Value: !Ref ProjectName
+  Cluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      EncryptionConfig: !If
+        - UseKms
+        - - Provider:
+              KeyArn: !Ref SecretKmsKeyArn
+            Resources:
+              - secrets
+        - !Ref AWS::NoValue
+      KubernetesNetworkConfig:
+        IpFamily: !Ref IpFamily
+      Logging:
+        ClusterLogging:
+          EnabledTypes:
+            - Type: api
+            - Type: audit
+            - Type: authenticator
+            - Type: controllerManager
+            - Type: scheduler
+      Name: !Ref ClusterName
+      ResourcesVpcConfig:
+        EndpointPrivateAccess: true
+        EndpointPublicAccess: false
+        SecurityGroupIds:
+          - !GetAtt AdditionalSecurityGroup.GroupId
+        SubnetIds: !Ref SubnetIds
+      RoleArn: !GetAtt ClusterRole.Arn
+      Tags:
+        - Key: Name
+          Value: !Ref ClusterName
+        - Key: project
+          Value: !Ref ProjectName
+      Version: !Ref ClusterVersion
+  CoreDnsAddon:
+    Type: AWS::EKS::Addon
+    Properties:
+      AddonName: coredns
+      ClusterName: !Ref Cluster
+      ResolveConflicts: OVERWRITE
+  KubeProxyAddon:
+    Type: AWS::EKS::Addon
+    Properties:
+      AddonName: kube-proxy
+      ClusterName: !Ref Cluster
+      ResolveConflicts: OVERWRITE
+  OidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      ClientIdList:
+        - "sts.amazonaws.com"
+      ThumbprintList:
+        - "9E99A48A9960B14926BB7F3B02E22DA2B0AB7280"
+      Url: !GetAtt Cluster.OpenIdConnectIssuerUrl
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+  
+
+Outputs:
+  ClusterRoleArn:
+    Value: !GetAtt ClusterRole.Arn
+  AdditionalSecurityGroupId:
+    Value: !GetAtt AdditionalSecurityGroup.GroupId
+  ClusterArn:
+    Value: !GetAtt Cluster.Arn
+  ClusterSecurityGroupId:
+    Value: !GetAtt Cluster.ClusterSecurityGroupId
+  ClusterEndpoint:
+    Value: !GetAtt Cluster.Endpoint
+  ClusterOpenIdConnectIssuerUrl:
+    Value: !GetAtt Cluster.OpenIdConnectIssuerUrl
+  OidcProviderArn:
+    Value: !Ref OidcProvider
