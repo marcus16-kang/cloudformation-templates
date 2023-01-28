@@ -20,6 +20,11 @@ Parameters:
     Description: "[optional] The name of vpc-cni's IAM Role."
     Default: ""
   
+  EbsCsiDriverRoleName:
+    Type: String
+    Description: "[optional] The name of aws-ebs-csi-driver's IAM Role."
+    Default: ""
+  
   ServiceAccountRoleConfigArn:
     Type: String
     Description: "[REQUIRED] The ARN of ServiceAccountRoleConfigFunction."
@@ -31,7 +36,10 @@ Parameters:
 Conditions:
   UseVpcCniRoleName: !Not [!Equals [!Ref VpcCniRoleName, ""]]
 
+  UseEbsCsiDriverRoleName: !Not [!Equals [!Ref EbsCsiDriverRoleName, ""]]
+
 Resources:
+  ### core-dns
   CoreDnsAddon:
     Type: AWS::EKS::Addon
     Properties:
@@ -39,6 +47,7 @@ Resources:
       ClusterName: !Ref ClusterName
       ResolveConflicts: OVERWRITE
 
+  ### kube-proxy
   KubeProxyAddon:
     Type: AWS::EKS::Addon
     Properties:
@@ -46,6 +55,7 @@ Resources:
       ClusterName: !Ref ClusterName
       ResolveConflicts: OVERWRITE
 
+  ### vpc-cni
   VpcCniRole:
     Type: AWS::IAM::Role
     Properties:
@@ -91,3 +101,50 @@ Resources:
       ClusterName: !Ref ClusterName
       ResolveConflicts: OVERWRITE
       ServiceAccountRoleArn: !GetAtt VpcCniRole.Arn
+
+  ### aws-ebs-csi-driver
+  EbsCsiDriverRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref ClusterOidcProvider
+            Action:
+              - "sts:AssumeRoleWithWebIdentity"
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
+      RoleName: !If
+        - UseEbsCsiDriverRoleName
+        - !Ref EbsCsiDriverRoleName
+        - !Sub "${ClusterName}-ebs-csi-driver-role"
+      Tags:
+        - Key: Name
+          Value: !If
+            - UseEbsCsiDriverRoleName
+            - !Ref EbsCsiDriverRoleName
+            - !Sub "${ClusterName}-ebs-csi-driver-role"
+        - Key: project
+          Value: !Ref ProjectName
+  
+  EbsCsiDriverRoleConfig:
+    Type: Custom::ServiceAccountRoleConfig
+    Properties:
+      ServiceToken: !Ref ServiceAccountRoleConfigArn
+      RoleName: !Ref EbsCsiDriverRole
+      OidcIssuerUrl: !Ref ClusterOidcIssuerUrl
+      OidcArn: !Ref ClusterOidcProvider
+      Namespace: kube-system
+      ServiceAccount: ebs-csi-controller-sa
+
+  EbsCsiDriverAddon:
+    Type: AWS::EKS::Addon
+    DependsOn: EbsCsiDriverRoleConfig
+    Properties:
+      AddonName: aws-ebs-csi-driver
+      ClusterName: !Ref ClusterName
+      ResolveConflicts: OVERWRITE
+      ServiceAccountRoleArn: !GetAtt EbsCsiDriverRole.Arn

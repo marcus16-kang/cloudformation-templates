@@ -15,11 +15,6 @@ Parameters:
     Type: String
     Description: "[REQUIRED] The OIDC Issuer URL of EKS cluster." 
   
-  # LoadBalancerControllerRoleName:
-  #   Type: String
-  #   Description: "[optional] The name of AWS Load Balancer Controller's IAM Role."
-  #   Default: ""
-  
   ServiceAccountRoleConfigArn:
     Type: String
     Description: "[REQUIRED] The ARN of ServiceAccountRoleConfigFunction."
@@ -45,8 +40,6 @@ Parameters:
 Conditions:
   UseAlartManagerDefinition: !Not [!Equals [!Ref PrometheusAlertManagerDefinition, ""]]
   UseLogGroup: !Not [!Equals [!Ref PrometheusLogGroupName, ""]]
-  # UseLoadBalancerControllerRoleName:
-  #   !Not [!Equals [!Ref LoadBalancerControllerRoleName, ""]]
 
 Resources:
   PrometheusLogGroup:
@@ -54,7 +47,7 @@ Resources:
     Properties:
       LogGroupName: !If
         - UseLogGroup
-        - !Ref UseLogGroup
+        - !Ref PrometheusLogGroupName
         - !Sub
           - '/aws/prometheus/${workspace_name}'
           - workspace_name: !Ref PrometheusWorkspaceName
@@ -64,7 +57,7 @@ Resources:
     Properties:
       AlertManagerDefinition: !If
         - UseAlartManagerDefinition
-        - !Ref UseAlartManagerDefinition
+        - !Ref PrometheusAlertManagerDefinition
         - !Ref AWS::NoValue
       Alias: !Ref PrometheusWorkspaceName
       LoggingConfiguration:
@@ -73,7 +66,7 @@ Resources:
         - Key: project
           Value: ProjectName
 
-  LoadBalancerControllerRole:
+  PrometheusRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -86,216 +79,72 @@ Resources:
               - "sts:AssumeRoleWithWebIdentity"
       Path: /
       Policies:
-        - PolicyName: AWSLoadBalancerControllerIAMPolicy
+        - PolicyName: AMPIngestPolicy
           PolicyDocument:
-            Version: "2012-10-17"
+            Version: '2012-10-17'
             Statement:
-              - Effect: Allow
-                Action:
-                  - iam:CreateServiceLinkedRole
-                Resource: "*"
-                Condition:
-                  StringEquals:
-                    iam:AWSServiceName: elasticloadbalancing.amazonaws.com
-              - Effect: Allow
-                Action:
-                  - ec2:DescribeAccountAttributes
-                  - ec2:DescribeAddresses
-                  - ec2:DescribeAvailabilityZones
-                  - ec2:DescribeInternetGateways
-                  - ec2:DescribeVpcs
-                  - ec2:DescribeVpcPeeringConnections
-                  - ec2:DescribeSubnets
-                  - ec2:DescribeSecurityGroups
-                  - ec2:DescribeInstances
-                  - ec2:DescribeNetworkInterfaces
-                  - ec2:DescribeTags
-                  - ec2:GetCoipPoolUsage
-                  - ec2:DescribeCoipPools
-                  - elasticloadbalancing:DescribeLoadBalancers
-                  - elasticloadbalancing:DescribeLoadBalancerAttributes
-                  - elasticloadbalancing:DescribeListeners
-                  - elasticloadbalancing:DescribeListenerCertificates
-                  - elasticloadbalancing:DescribeSSLPolicies
-                  - elasticloadbalancing:DescribeRules
-                  - elasticloadbalancing:DescribeTargetGroups
-                  - elasticloadbalancing:DescribeTargetGroupAttributes
-                  - elasticloadbalancing:DescribeTargetHealth
-                  - elasticloadbalancing:DescribeTags
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - cognito-idp:DescribeUserPoolClient
-                  - acm:ListCertificates
-                  - acm:DescribeCertificate
-                  - iam:ListServerCertificates
-                  - iam:GetServerCertificate
-                  - waf-regional:GetWebACL
-                  - waf-regional:GetWebACLForResource
-                  - waf-regional:AssociateWebACL
-                  - waf-regional:DisassociateWebACL
-                  - wafv2:GetWebACL
-                  - wafv2:GetWebACLForResource
-                  - wafv2:AssociateWebACL
-                  - wafv2:DisassociateWebACL
-                  - shield:GetSubscriptionState
-                  - shield:DescribeProtection
-                  - shield:CreateProtection
-                  - shield:DeleteProtection
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - ec2:AuthorizeSecurityGroupIngress
-                  - ec2:RevokeSecurityGroupIngress
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - ec2:CreateSecurityGroup
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - ec2:CreateTags
-                Resource: arn:aws:ec2:*:*:security-group/*
-                Condition:
-                  StringEquals:
-                    ec2:CreateAction: CreateSecurityGroup
-                  "Null":
-                    aws:RequestTag/elbv2.k8s.aws/cluster: "false"
-              - Effect: Allow
-                Action:
-                  - ec2:CreateTags
-                  - ec2:DeleteTags
-                Resource: arn:aws:ec2:*:*:security-group/*
-                Condition:
-                  "Null":
-                    aws:RequestTag/elbv2.k8s.aws/cluster: "true"
-                    aws:ResourceTag/elbv2.k8s.aws/cluster: "false"
-              - Effect: Allow
-                Action:
-                  - ec2:AuthorizeSecurityGroupIngress
-                  - ec2:RevokeSecurityGroupIngress
-                  - ec2:DeleteSecurityGroup
-                Resource: "*"
-                Condition:
-                  "Null":
-                    aws:ResourceTag/elbv2.k8s.aws/cluster: "false"
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:CreateLoadBalancer
-                  - elasticloadbalancing:CreateTargetGroup
-                Resource: "*"
-                Condition:
-                  "Null":
-                    aws:RequestTag/elbv2.k8s.aws/cluster: "false"
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:CreateListener
-                  - elasticloadbalancing:DeleteListener
-                  - elasticloadbalancing:CreateRule
-                  - elasticloadbalancing:DeleteRule
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:AddTags
-                  - elasticloadbalancing:RemoveTags
-                Resource:
-                  - arn:aws:elasticloadbalancing:*:*:targetgroup/*/*
-                  - arn:aws:elasticloadbalancing:*:*:loadbalancer/net/*/*
-                  - arn:aws:elasticloadbalancing:*:*:loadbalancer/app/*/*
-                Condition:
-                  "Null":
-                    aws:RequestTag/elbv2.k8s.aws/cluster: "true"
-                    aws:ResourceTag/elbv2.k8s.aws/cluster: "false"
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:AddTags
-                  - elasticloadbalancing:RemoveTags
-                Resource:
-                  - arn:aws:elasticloadbalancing:*:*:listener/net/*/*/*
-                  - arn:aws:elasticloadbalancing:*:*:listener/app/*/*/*
-                  - arn:aws:elasticloadbalancing:*:*:listener-rule/net/*/*/*
-                  - arn:aws:elasticloadbalancing:*:*:listener-rule/app/*/*/*
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:ModifyLoadBalancerAttributes
-                  - elasticloadbalancing:SetIpAddressType
-                  - elasticloadbalancing:SetSecurityGroups
-                  - elasticloadbalancing:SetSubnets
-                  - elasticloadbalancing:DeleteLoadBalancer
-                  - elasticloadbalancing:ModifyTargetGroup
-                  - elasticloadbalancing:ModifyTargetGroupAttributes
-                  - elasticloadbalancing:DeleteTargetGroup
-                Resource: "*"
-                Condition:
-                  "Null":
-                    aws:ResourceTag/elbv2.k8s.aws/cluster: "false"
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:RegisterTargets
-                  - elasticloadbalancing:DeregisterTargets
-                Resource: arn:aws:elasticloadbalancing:*:*:targetgroup/*/*
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:SetWebAcl
-                  - elasticloadbalancing:ModifyListener
-                  - elasticloadbalancing:AddListenerCertificates
-                  - elasticloadbalancing:RemoveListenerCertificates
-                  - elasticloadbalancing:ModifyRule
-                Resource: "*"
-      RoleName: !If
-        - UseLoadBalancerControllerRoleName
-        - !Ref LoadBalancerControllerRoleName
-        - !Sub "${ClusterName}-aws-load-balancer-controller-role"
+            - Effect: Allow
+              Action:
+              - aps:RemoteWrite
+              - aps:GetSeries
+              - aps:GetLabels
+              - aps:GetMetricMetadata
+              Resource: "*"
+      RoleName: amp-iamproxy-ingest-role
       Tags:
         - Key: Name
-          Value: !If
-            - UseLoadBalancerControllerRoleName
-            - !Ref LoadBalancerControllerRoleName
-            - !Sub "${ClusterName}-aws-load-balancer-controller-role"
+          Value: amp-iamproxy-ingest-role
         - Key: project
           Value: !Ref ProjectName
 
-  LoadBalancerControllerRoleConfig:
+  PrometheusRoleConfig:
     Type: Custom::ServiceAccountRoleConfig
-    DependsOn: LoadBalancerControllerRole
+    DependsOn: PrometheusRole
     Properties:
       ServiceToken: !Ref ServiceAccountRoleConfigArn
-      RoleName: !Ref LoadBalancerControllerRole
+      RoleName: !Ref PrometheusRole
       OidcIssuerUrl: !Ref ClusterOidcIssuerUrl
       OidcArn: !Ref ClusterOidcProvider
-      Namespace: kube-system
-      ServiceAccount: aws-load-balancer-controller
-
-  LoadBalancerControllerServiceAccount:
+      Namespace: prometheus
+      ServiceAccount: amp-iamproxy-ingest-service-account
+  
+  PrometheusNamespace:
     Type: AWSQS::Kubernetes::Resource
-    DependsOn: LoadBalancerControllerRoleConfig
+    DependsOn: PrometheusRoleConfig
     Properties:
       ClusterName: !Ref ClusterName
-      Namespace: kube-system
-      Manifest: !Sub
-        - |
-          apiVersion: v1
-          kind: ServiceAccount
-          metadata:
-            labels:
-              app.kubernetes.io/component: controller
-              app.kubernetes.io/name: aws-load-balancer-controller
-            name: aws-load-balancer-controller
-            namespace: kube-system
-            annotations:
-              eks.amazonaws.com/role-arn: ${load_balancer_controller_role}
-        - load_balancer_controller_role: !GetAtt LoadBalancerControllerRole.Arn
+      Namespace: prometheus
+      Manifest: |
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: prometheus
 
-  LoadBalancerControllerHelmChart:
+  PrometheusHelmChart:
     Type: AWSQS::Kubernetes::Helm
-    DependsOn: LoadBalancerControllerServiceAccount
+    DependsOn: PrometheusNamespace
     Properties:
       ClusterID: !Ref ClusterName
-      Name: aws-load-balancer-controller
-      Namespace: kube-system
-      Repository: https://aws.github.io/eks-charts
-      Chart: eks/aws-load-balancer-controller
-      Values:
-        clusterName: !Ref ClusterName
-        serviceAccount.create: "false"
-        serviceAccount.name: aws-load-balancer-controller
+      Name: prometheus-community
+      Namespace: prometheus
+      Repository: https://prometheus-community.github.io/helm-charts
+      Chart: prometheus-community/prometheus
+      ValueYaml: !Sub
+        - |
+          serviceAccounts:
+              server:
+                  name: "amp-iamproxy-ingest-service-account"
+                  annotations:
+                      eks.amazonaws.com/role-arn: "${role_arn}"
+          server:
+              remoteWrite:
+                  - url: ${prometheus_endpoint}/api/v1/remote_write
+                    sigv4:
+                      region: ${region}
+                    queue_config:
+                      max_samples_per_send: 1000
+                      max_shards: 200
+                      capacity: 2500
+        - role_arn: !GetAtt PrometheusRole.Arn
+          prometheus_endpoint: !GetAtt PrometheusWorkspace.PrometheusEndpoint
+          region: !Ref AWS::Region

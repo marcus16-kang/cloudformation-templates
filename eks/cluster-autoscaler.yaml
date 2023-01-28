@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 
-Description: AWS Load Balancer Controller for EKS cluster.
+Description: Cluster Autoscaler for EKS cluster.
 
 Parameters:
   ClusterName:
@@ -69,26 +69,28 @@ Resources:
       Policies:
         - PolicyName: AmazonEKSClusterAutoscalerPolicy
           PolicyDocument:
-            Version: "2012-10-17"
+            Version: '2012-10-17'
             Statement:
-              - Sid: VisualEditor0
-                Effect: Allow
-                Action:
-                  - autoscaling:SetDesiredCapacity
-                  - autoscaling:TerminateInstanceInAutoScalingGroup
-                Resource: "*"
-                Condition:
-                  StringEquals:
-                    aws:ResourceTag/k8s.io/cluster-autoscaler/my-cluster: owned
-              - Sid: VisualEditor1
-                Effect: Allow
-                Action:
-                  - autoscaling:DescribeAutoScalingInstances
-                  - autoscaling:DescribeAutoScalingGroups
-                  - ec2:DescribeLaunchTemplateVersions
-                  - autoscaling:DescribeTags
-                  - autoscaling:DescribeLaunchConfigurations
-                Resource: "*"
+            - Effect: Allow
+              Action:
+              - autoscaling:DescribeAutoScalingGroups
+              - autoscaling:DescribeAutoScalingInstances
+              - autoscaling:DescribeLaunchConfigurations
+              - autoscaling:DescribeScalingActivities
+              - autoscaling:DescribeTags
+              - ec2:DescribeInstanceTypes
+              - ec2:DescribeLaunchTemplateVersions
+              Resource:
+              - "*"
+            - Effect: Allow
+              Action:
+              - autoscaling:SetDesiredCapacity
+              - autoscaling:TerminateInstanceInAutoScalingGroup
+              - ec2:DescribeImages
+              - ec2:GetInstanceTypesFromInstanceRequirements
+              - eks:DescribeNodegroup
+              Resource:
+              - "*"
       RoleName: !If
         - UseClusterAutoscalerRoleName
         - !Ref ClusterAutoscalerRoleName
@@ -259,223 +261,6 @@ Resources:
                 annotations:
                   prometheus.io/scrape: 'true'
                   prometheus.io/port: '8085'
-              spec:
-                priorityClassName: system-cluster-critical
-                securityContext:
-                  runAsNonRoot: true
-                  runAsUser: 65534
-                  fsGroup: 65534
-                serviceAccountName: cluster-autoscaler
-                containers:
-                  - image: k8s.gcr.io/autoscaling/cluster-autoscaler:v1.23.0
-                    name: cluster-autoscaler
-                    resources:
-                      limits:
-                        cpu: 100m
-                        memory: 600Mi
-                      requests:
-                        cpu: 100m
-                        memory: 600Mi
-                    command:
-                      - ./cluster-autoscaler
-                      - --v=4
-                      - --stderrthreshold=info
-                      - --cloud-provider=aws
-                      - --skip-nodes-with-local-storage=false
-                      - --expander=least-waste
-                      - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/${cluster_name}
-                      - --balance-similar-node-groups
-                      - --skip-nodes-with-system-pods=false
-                    volumeMounts:
-                      - name: ssl-certs
-                        mountPath: /etc/ssl/certs/ca-certificates.crt #/etc/ssl/certs/ca-bundle.crt for Amazon Linux Worker Nodes
-                        readOnly: true
-                    imagePullPolicy: "Always"
-                volumes:
-                  - name: ssl-certs
-                    hostPath:
-                      path: "/etc/ssl/certs/ca-bundle.crt"
-        - cluster_name: !Ref ClusterName
-          cluster_autoscaler_role: !GetAtt ClusterAutoscalerRole.Arn
-
-  # ClusterAutoscalerServiceAccountAnnotationUpdate:
-  #   Type: AWSQS::Kubernetes::Resource
-  #   DependsOn: ClusterAutoscalerResources
-  #   Properties:
-  #     ClusterName: !Ref ClusterName
-  #     Namespace: kube-system
-  #     Manifest: !Sub
-  #       - |
-  #         apiVersion: v1
-  #         kind: ServiceAccount
-  #         metadata:
-  #           labels:
-  #             k8s-addon: cluster-autoscaler.addons.k8s.io
-  #             k8s-app: cluster-autoscaler
-  #           annotations:
-  #             eks.amazonaws.com/role-arn: ${cluster_autoscaler_role}
-  #           name: cluster-autoscaler
-  #           namespace: kube-system
-  #       - cluster_autoscaler_role: !GetAtt ClusterAutoscalerRole.Arn
-
-  ClusterAutoscalerDeploymentAnnotationUpdate:
-    Type: AWSQS::Kubernetes::Resource
-    # DependsOn: ClusterAutoscalerServiceAccountAnnotationUpdate
-    DependsOn: ClusterAutoscalerResources
-    Properties:
-      ClusterName: !Ref ClusterName
-      Namespace: kube-system
-      Manifest: !Sub
-        - |
-          apiVersion: apps/v1
-          kind: Deployment
-          metadata:
-            name: cluster-autoscaler
-            namespace: kube-system
-            labels:
-              app: cluster-autoscaler
-          spec:
-            replicas: 1
-            selector:
-              matchLabels:
-                app: cluster-autoscaler
-            template:
-              metadata:
-                labels:
-                  app: cluster-autoscaler
-                annotations:
-                  prometheus.io/scrape: 'true'
-                  prometheus.io/port: '8085'
-                  cluster-autoscaler.kubernetes.io/safe-to-evict: 'false'
-              spec:
-                priorityClassName: system-cluster-critical
-                securityContext:
-                  runAsNonRoot: true
-                  runAsUser: 65534
-                  fsGroup: 65534
-                serviceAccountName: cluster-autoscaler
-                containers:
-                  - image: k8s.gcr.io/autoscaling/cluster-autoscaler:v1.23.0
-                    name: cluster-autoscaler
-                    resources:
-                      limits:
-                        cpu: 100m
-                        memory: 600Mi
-                      requests:
-                        cpu: 100m
-                        memory: 600Mi
-                    command:
-                      - ./cluster-autoscaler
-                      - --v=4
-                      - --stderrthreshold=info
-                      - --cloud-provider=aws
-                      - --skip-nodes-with-local-storage=false
-                      - --expander=least-waste
-                      - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/${cluster_name}
-                    volumeMounts:
-                      - name: ssl-certs
-                        mountPath: /etc/ssl/certs/ca-certificates.crt #/etc/ssl/certs/ca-bundle.crt for Amazon Linux Worker Nodes
-                        readOnly: true
-                    imagePullPolicy: "Always"
-                volumes:
-                  - name: ssl-certs
-                    hostPath:
-                      path: "/etc/ssl/certs/ca-bundle.crt"
-        - cluster_name: !Ref ClusterName
-
-  ClusterAutoscalerDeploymentContainerUpdate:
-    Type: AWSQS::Kubernetes::Resource
-    DependsOn: ClusterAutoscalerDeploymentAnnotationUpdate
-    Properties:
-      ClusterName: !Ref ClusterName
-      Namespace: kube-system
-      Manifest: !Sub
-        - |
-          apiVersion: apps/v1
-          kind: Deployment
-          metadata:
-            name: cluster-autoscaler
-            namespace: kube-system
-            labels:
-              app: cluster-autoscaler
-          spec:
-            replicas: 1
-            selector:
-              matchLabels:
-                app: cluster-autoscaler
-            template:
-              metadata:
-                labels:
-                  app: cluster-autoscaler
-                annotations:
-                  prometheus.io/scrape: 'true'
-                  prometheus.io/port: '8085'
-                  cluster-autoscaler.kubernetes.io/safe-to-evict: 'false'
-              spec:
-                priorityClassName: system-cluster-critical
-                securityContext:
-                  runAsNonRoot: true
-                  runAsUser: 65534
-                  fsGroup: 65534
-                serviceAccountName: cluster-autoscaler
-                containers:
-                  - image: k8s.gcr.io/autoscaling/cluster-autoscaler:v1.23.0
-                    name: cluster-autoscaler
-                    resources:
-                      limits:
-                        cpu: 100m
-                        memory: 600Mi
-                      requests:
-                        cpu: 100m
-                        memory: 600Mi
-                    command:
-                      - ./cluster-autoscaler
-                      - --v=4
-                      - --stderrthreshold=info
-                      - --cloud-provider=aws
-                      - --skip-nodes-with-local-storage=false
-                      - --expander=least-waste
-                      - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/${cluster_name}
-                      - --balance-similar-node-groups
-                      - --skip-nodes-with-system-pods=false
-                    volumeMounts:
-                      - name: ssl-certs
-                        mountPath: /etc/ssl/certs/ca-certificates.crt #/etc/ssl/certs/ca-bundle.crt for Amazon Linux Worker Nodes
-                        readOnly: true
-                    imagePullPolicy: "Always"
-                volumes:
-                  - name: ssl-certs
-                    hostPath:
-                      path: "/etc/ssl/certs/ca-bundle.crt"
-        - cluster_name: !Ref ClusterName
-
-  ClusterAutoscalerDeploymentImageUpdate:
-    Type: AWSQS::Kubernetes::Resource
-    DependsOn: ClusterAutoscalerDeploymentContainerUpdate
-    Properties:
-      ClusterName: !Ref ClusterName
-      Namespace: kube-system
-      Manifest: !Sub
-        - |
-          apiVersion: apps/v1
-          kind: Deployment
-          metadata:
-            name: cluster-autoscaler
-            namespace: kube-system
-            labels:
-              app: cluster-autoscaler
-          spec:
-            replicas: 1
-            selector:
-              matchLabels:
-                app: cluster-autoscaler
-            template:
-              metadata:
-                labels:
-                  app: cluster-autoscaler
-                annotations:
-                  prometheus.io/scrape: 'true'
-                  prometheus.io/port: '8085'
                   cluster-autoscaler.kubernetes.io/safe-to-evict: 'false'
               spec:
                 priorityClassName: system-cluster-critical
@@ -505,6 +290,9 @@ Resources:
                       - --balance-similar-node-groups
                       - --skip-nodes-with-system-pods=false
                     volumeMounts:
+                      - --balance-similar-node-groups
+                      - --skip-nodes-with-system-pods=false
+                    volumeMounts:
                       - name: ssl-certs
                         mountPath: /etc/ssl/certs/ca-certificates.crt #/etc/ssl/certs/ca-bundle.crt for Amazon Linux Worker Nodes
                         readOnly: true
@@ -513,12 +301,14 @@ Resources:
                   - name: ssl-certs
                     hostPath:
                       path: "/etc/ssl/certs/ca-bundle.crt"
-        - image_tag: !FindInMap [ClusterAutoscalerImageVersionMap, !Ref ClusterVersion, latest]
-          cluster_name: !Ref ClusterName
+        - cluster_name: !Ref ClusterName
+          cluster_autoscaler_role: !GetAtt ClusterAutoscalerRole.Arn
+          image_tag: !FindInMap [ClusterAutoscalerImageVersionMap, !Ref ClusterVersion, latest]
 
   ClusterAutoscalerOverProvisioningPod:
     Type: AWSQS::Kubernetes::Resource
-    DependsOn: ClusterAutoscalerDeploymentImageUpdate
+    # DependsOn: ClusterAutoscalerDeploymentImageUpdate
+    DependsOn: ClusterAutoscalerResources
     Properties:
       ClusterName: !Ref ClusterName
       Namespace: kube-system
