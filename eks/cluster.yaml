@@ -57,19 +57,14 @@ Parameters:
     Default: ""
 
   ### Node
-  # Node configuration - general
-  NodeType:
-    Type: String
-    Description: "[REQUIRED] The node type of EKS cluster's base node."
-    AllowedValues:
-      - Nodegroup
-      - Fargate
-    Default: Nodegroup
-  NodeRoleName:
-    Type: String
-    Description: "[REQUIRED] The name of EKS cluster base node's IAM Role."
-
   # Node configuration - nodegroup
+  EnableNodegroup:
+    Type: String
+    Description: "[REQUIRED] Enable or disble managed node group for EKS cluster."
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "true"
   AmiType:
     Type: String
     Description: "[REQUIRED] The ami type for node group's EC2 instances."
@@ -104,6 +99,9 @@ Parameters:
   NodegroupName:
     Type: String
     Description: "[REQUIRED] The name of EKS cluster's node group."
+  NodegroupRoleName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS cluster node gruop's IAM Role."
   ScalingDesiredSize:
     Type: Number
     Description: "[REQUIRED] The desired size of EKS cluster node group's scaling."
@@ -115,9 +113,19 @@ Parameters:
     Description: "[REQUIRED] The min size of EKS cluster node group's scaling."
 
   # Node configuration - fargate
+  EnableFargate:
+    Type: String
+    Description: "[REQUIRED] Enable or disble fargate for EKS cluster."
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "false"
   FargateProfileName:
     Type: String
     Description: "[REQUIRED] The name of EKS cluster's fargate profile."
+  FargateRoleName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS cluster fargate pod's IAM Role."
   SelectorNamespace:
     Type: String
     Description: "[REQUIRED] The namespace of EKS cluster fargate profile's selector. (YOU CAN ADD MORE NAMESPACE AND LABELS IN YAML FILE)"
@@ -210,27 +218,25 @@ Metadata:
           - VpcCniRoleName
 
       - Label:
-          default: Node Configuration - General
-        Parameters:
-          - NodeType
-          - NodeRoleName
-
-      - Label:
           default: Node Configuration - Nodegroup (YOU CAN ADD MORE OPTIONS IN YAML FILE)
         Parameters:
+          - EnableNodegroup
           - AmiType
           - CapacityType
           - DiskSize
           - InstanceTypes
           - NodegroupName
+          - NodegroupRoleName
           - ScalingDesiredSize
           - ScalingMinSize
           - ScalingMaxSize
 
       - Label:
-          default: Node Configuration - Fargate (YOU CAN ADD MORE OPTIONS IN YAML FILE)
+          default: Node Configuration - Fargate (YOU CAN ADD MORE OPTIONS IN YAML FILE, PLEASE PATCH COREDNS WHEN YOU USE ONLY FARGATE)
         Parameters:
+          - EnableFargate
           - FargateProfileName
+          - FargateRoleName
           - SelectorNamespace
 
       - Label:
@@ -262,8 +268,8 @@ Conditions:
   UseBastionRole: !Not [!Equals [!Ref BastionRoleArn, ""]]
   UseVpcCniRoleName: !Not [!Equals [!Ref VpcCniRoleName, ""]]
 
-  UseNodegroup: !Equals [!Ref NodeType, "Nodegroup"]
-  UseFargate: !Equals [!Ref NodeType, "Fargate"]
+  IsEnableNodegroup: !Equals [!Ref EnableNodegroup, "true"]
+  IsEnableFargate: !Equals [!Ref EnableFargate, "true"]
 
   IsEnableLoadBalancerController:
     !Equals [!Ref EnableLoadBalancerController, "true"]
@@ -274,17 +280,6 @@ Conditions:
     !Equals [!Ref EnableHorizontalPodAutoscaler, "true"]
 
   IsEnableClusterAutoscaler: !Equals [!Ref EnableClusterAutoscaler, "true"]
-
-Mappings:
-  ClusterAutoscalerImageVersionMap:
-    "1.21":
-      latest: "1.21.2"
-    "1.22":
-      latest: "1.22.2"
-    "1.23":
-      latest: "1.23.0"
-    "1.24":
-      latest: "1.24.0"
 
 Resources:
   ### Get templates from Github to S3
@@ -583,7 +578,7 @@ Resources:
   ### Node - Nodegroup
   NodegroupRole:
     Type: AWS::IAM::Role
-    Condition: UseNodegroup
+    Condition: IsEnableNodegroup
     Properties:
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -619,20 +614,20 @@ Resources:
                     - arn:aws:ec2:*:*:network-interface/*
             PolicyName: AmazonEKS_CNI_IPv6_Policy
         - !Ref AWS::NoValue
-      RoleName: !Ref NodeRoleName
+      RoleName: !Ref NodegroupRoleName
 
   NodegroupRoleInstanceProfile:
     Type: "AWS::IAM::InstanceProfile"
-    Condition: UseNodegroup
+    Condition: IsEnableNodegroup
     Properties:
       Path: "/"
-      InstanceProfileName: !Ref NodeRoleName
+      InstanceProfileName: !Ref NodegroupRoleName
       Roles:
-        - !Ref NodegroupRole
+        - !Ref NodegroupRoleName
 
   Nodegroup:
     Type: AWS::EKS::Nodegroup
-    Condition: UseNodegroup
+    Condition: IsEnableNodegroup
     DependsOn: NodegroupRoleInstanceProfile
     Properties:
       AmiType: !Ref AmiType
@@ -670,6 +665,48 @@ Resources:
       UpdateConfig: # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-eks-nodegroup-updateconfig.html
         MaxUnavailable: 1
         # MaxUnavailablePercentage: "1" ~ "100"
+
+  ### Node - Fargate
+  FargateRole:
+    Type: 'AWS::IAM::Role'
+    Condition: EnableFargate
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Condition:
+              ArnLike:
+                aws:SourceArn: !Sub
+                  - 'arn:aws:eks:${region_code}:${account_id}:fargateprofile/${cluster_name]/*'
+                  - region_code: !Ref AWS::Region
+                    account_id: !Ref AWS::AccountId
+                    cluster_name: !Ref Cluster
+            Principal:
+              Service:
+                - eks-fargate-pods.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy
+      RoleName: !Ref FargateRoleName
+  
+  FargateProfile:
+    Type: AWS::EKS::FargateProfile
+    Condition: EnableFargate
+    Properties:
+      ClusterName: !Ref Cluster
+      PodExecutionRoleArn: !GetAtt FargateRole.Arn
+      Selectors:  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-eks-fargateprofile-selector.html
+        - Namespace: !Ref SelectorNamespace
+          # Labels:
+          #   - Key: label_key1
+          #     Value: label_value1
+      Subnets: !Ref SubnetIds
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
 
   ### AWS Load Balancer Controller
   AwsLoadBalancerController:
@@ -726,10 +763,10 @@ Resources:
   ### Cluster Autoscaler
   ClusterAutoscaler:
     Type: AWS::CloudFormation::Stack
-    Condition: IsEnableExternalDns
+    Condition: IsEnableClusterAutoscaler
     Properties:
       TemplateURL: !Sub
-        - "https://${domain_name}/eks/clsuter-autoscaler.yaml"
+        - "https://${domain_name}/eks/cluster-autoscaler.yaml"
         - domain_name: !GetAtt TemplatesS3Bucket.DomainName
       Parameters:
         ClusterName: !Ref Cluster
@@ -738,6 +775,7 @@ Resources:
         ClusterAutoscalerRoleName: !Ref ClusterAutoscalerRoleName
         ServiceAccountRoleConfigArn: !GetAtt ServiceAccountConfig.Outputs.ServiceAccountRoleConfigArn
         ProjectName: !Ref ProjectName
+        ClusterVersion: !Ref ClusterVersion
       Tags:
         - Key: project
           Value: !Ref ProjectName
