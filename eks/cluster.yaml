@@ -3,6 +3,17 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: A EKS Cluster.
 
 Parameters:
+  ### Stack
+  # Stack configuraiton
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
+  CustomResourcesProviderStackName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS CloudFormaiton custom resources provider stack name."
+
+  ### Cluster
+  # Cluster configuration - general
   ClusterName:
     Type: String
     Description: "[REQUIRED] The name of EKS cluster."
@@ -17,18 +28,6 @@ Parameters:
     Type: String
     Description: "[optional] The arn of KMS key to encrypt kubernetes secrets."
     Default: ""
-  AdditionalSecurityGroupName:
-    Type: String
-    Description: "[REQUIRED] The name of EKS cluster's additional Security Group."
-  ProjectName:
-    Type: String
-    Description: "[REQUIRED] The name of this project."
-  VpcId:
-    Type: AWS::EC2::VPC::Id
-    Description: "[REQUIRED] The id of EKS cluster's VPC."
-  SubnetIds:
-    Type: List<AWS::EC2::Subnet::Id>
-    Description: "[REQUIRED] The id of EKS cluster's Subnets."
   ClusterRoleName:
     Type: String
     Description: "[REQUIRED] The name of EKS cluster's IAM Role."
@@ -41,17 +40,94 @@ Parameters:
       - "1.23"
       - "1.24"
     Default: "1.24"
+
+  # Cluster configuration - network
+  AdditionalSecurityGroupName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS cluster's additional Security Group."
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: "[REQUIRED] The id of EKS cluster's VPC."
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: "[REQUIRED] The id of EKS cluster's Subnets."
   BastionRoleArn:
     Type: String
     Description: "[optional] The arn of bastion instance's IAM Role."
     Default: ""
+
+  ### Node
+  # Node configuration - general
+  NodeType:
+    Type: String
+    Description: "[REQUIRED] The node type of EKS cluster's base node."
+    AllowedValues:
+      - Nodegroup
+      - Fargate
+    Default: Nodegroup
+  NodeRoleName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS cluster base node's IAM Role."
+
+  # Node configuration - nodegroup
+  AmiType:
+    Type: String
+    Description: "[REQUIRED] The ami type for node group's EC2 instances."
+    AllowedValues:
+      - AL2_ARM_64
+      - AL2_x86_64
+      - AL2_x86_64_GPU
+      - BOTTLEROCKET_ARM_64
+      - BOTTLEROCKET_ARM_64_NVIDIA
+      - BOTTLEROCKET_x86_64
+      - BOTTLEROCKET_x86_64_NVIDIA
+      - CUSTOM
+      - WINDOWS_CORE_2019_x86_64
+      - WINDOWS_CORE_2022_x86_64
+      - WINDOWS_FULL_2019_x86_64
+      - WINDOWS_FULL_2022_x86_64
+  CapacityType:
+    Type: String
+    Description: "[optional] The capacity type of node group."
+    AllowedValues:
+      - ON_DEMAND
+      - SPOT
+    Default: ON_DEMAND
+  DiskSize:
+    Type: Number
+    Description: "[optional] The size of node gruop's disk."
+    Default: "20"
+  InstanceTypes:
+    Type: List<String>
+    Description: "[REQUIRED] The types for node group's EC2 instances."
+    Default: "t3.medium"
+  NodegroupName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS cluster's node group."
+  ScalingDesiredSize:
+    Type: Number
+    Description: "[REQUIRED] The desired size of EKS cluster node group's scaling."
+  ScalingMaxSize:
+    Type: Number
+    Description: "[REQUIRED] The max size of EKS cluster node group's scaling."
+  ScalingMinSize:
+    Type: Number
+    Description: "[REQUIRED] The min size of EKS cluster node group's scaling."
+
+  # Node configuration - fargate
+  FargateProfileName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS cluster's fargate profile."
+  SelectorNamespace:
+    Type: String
+    Description: "[REQUIRED] The namespace of EKS cluster fargate profile's selector. (YOU CAN ADD MORE NAMESPACE AND LABELS IN YAML FILE)"
+
+  ### Addons
+  # vpc-cni
   VpcCniRoleName:
     Type: String
     Description: "[optional] The name of vpc-cni's IAM Role."
     Default: ""
-  CustomResourcesProviderStackName:
-    Type: String
-    Description: "[REQUIRED] The name of EKS CloudFormaiton custom resources provider stack name."
 
   ### Kubernetes resources
   # AWS Load Balance Controller
@@ -102,10 +178,92 @@ Parameters:
     Description: "[optional] The name of Cluster Autoscaler's IAM Role."
     Default: ""
 
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+          - CustomResourcesProviderStackName
+
+      - Label:
+          default: Cluster Configuration - General
+        Parameters:
+          - ClusterName
+          - IpFamily
+          - SecretKmsKeyArn
+          - ClusterRoleName
+          - ClusterVersion
+
+      - Label:
+          default: Cluster Configuration - Network
+        Parameters:
+          - AdditionalSecurityGroupName
+          - VpcId
+          - SubnetIds
+          - BastionRoleArn
+
+      - Label:
+          default: Cluster Configuration - Addons
+        Parameters:
+          - VpcCniRoleName
+
+      - Label:
+          default: Node Configuration - General
+        Parameters:
+          - NodeType
+          - NodeRoleName
+
+      - Label:
+          default: Node Configuration - Nodegroup (YOU CAN ADD MORE OPTIONS IN YAML FILE)
+        Parameters:
+          - AmiType
+          - CapacityType
+          - DiskSize
+          - InstanceTypes
+          - NodegroupName
+          - ScalingDesiredSize
+          - ScalingMinSize
+          - ScalingMaxSize
+
+      - Label:
+          default: Node Configuration - Fargate (YOU CAN ADD MORE OPTIONS IN YAML FILE)
+        Parameters:
+          - FargateProfileName
+          - SelectorNamespace
+
+      - Label:
+          default: Kubernetes Configuration - AWS Load Balancer Controller
+        Parameters:
+          - EnableLoadBalancerController
+          - LoadBalancerControllerRoleName
+
+      - Label:
+          default: Kubernetes Configuration - External DNS
+        Parameters:
+          - EnableExternalDns
+          - ExternalDnsRoleName
+
+      - Label:
+          default: Kubernetes Configuration - Horizontal Pod Autoscaler
+        Parameters:
+          - EnableHorizontalPodAutoscaler
+
+      - Label:
+          default: Kubernetes Configuration - Cluster Autoscaler
+        Parameters:
+          - EnableClusterAutoscaler
+          - ClusterAutoscalerRoleName
+
 Conditions:
+  UseIpv6: !Equals [!Ref IpFamily, "ipv6"]
   UseKms: !Not [!Equals [!Ref SecretKmsKeyArn, ""]]
   UseBastionRole: !Not [!Equals [!Ref BastionRoleArn, ""]]
   UseVpcCniRoleName: !Not [!Equals [!Ref VpcCniRoleName, ""]]
+
+  UseNodegroup: !Equals [!Ref NodeType, "Nodegroup"]
+  UseFargate: !Equals [!Ref NodeType, "Fargate"]
 
   IsEnableLoadBalancerController:
     !Equals [!Ref EnableLoadBalancerController, "true"]
@@ -129,6 +287,163 @@ Mappings:
       latest: "1.24.0"
 
 Resources:
+  ### Get templates from Github to S3
+  TemplatesS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        !Join [
+          "-",
+          [
+            "eks-templates",
+            !Select [
+              4,
+              !Split ["-", !Select [2, !Split ["/", !Ref AWS::StackId]]],
+            ],
+          ],
+        ]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+
+  TemplatesFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+
+  TemplatesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt TemplatesFunctionRole.Arn
+      Timeout: 10
+      Environment:
+        Variables:
+          TEMPLATE_BUCKET_NAME: !Ref TemplatesS3Bucket
+      EphemeralStorage:
+        Size: 1024
+      Code:
+        ZipFile: |
+          from __future__ import print_function
+          import urllib3
+          import json
+          import boto3
+          import traceback
+          import os
+
+          SUCCESS = "SUCCESS"
+          FAILED = "FAILED"
+
+          http = urllib3.PoolManager()
+
+          def send(event, context, responseStatus, responseData, physicalResourceId=None, noEcho=False, reason=None):
+              responseUrl = event['ResponseURL']
+
+              print(responseUrl)
+
+              responseBody = {
+                  'Status' : responseStatus,
+                  'Reason' : reason or "See the details in CloudWatch Log Stream: {}".format(context.log_stream_name),
+                  'PhysicalResourceId' : physicalResourceId or context.log_stream_name,
+                  'StackId' : event['StackId'],
+                  'RequestId' : event['RequestId'],
+                  'LogicalResourceId' : event['LogicalResourceId'],
+                  'NoEcho' : noEcho,
+                  'Data' : responseData
+              }
+
+              json_responseBody = json.dumps(responseBody)
+
+              print("Response body:")
+              print(json_responseBody)
+
+              headers = {
+                  'content-type' : '',
+                  'content-length' : str(len(json_responseBody))
+              }
+
+              try:
+                  response = http.request('PUT', responseUrl, headers=headers, body=json_responseBody)
+                  print("Status code:", response.status)
+
+
+              except Exception as e:
+
+                  print("send(..) failed executing http.request(..):", e)
+
+          def get_data(url):
+              req = http.request('GET', url)
+              data = req.data
+              
+              if req.status == 200:
+                  return data
+              
+              else:
+                  return None
+
+          def lambda_handler(event, context):
+              print(event)
+
+              try:
+                  client = boto3.client('s3')
+                  s3 = boto3.resource('s3')
+                  bucket = s3.Bucket(os.getenv('TEMPLATE_BUCKET_NAME'))
+
+                  if event['RequestType'] == 'Delete':
+                    bucket.objects.all().delete()
+                    send(event, context, SUCCESS, {}, None)
+                  
+                  else:
+                      urls = [
+                          'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/addons.yaml',
+                          'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/aws-load-balancer-controller.yaml',
+                          'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/cluster-autoscaler.yaml',
+                          'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/external-dns.yaml',
+                          'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/horizontal-pod-autoscaler.yaml',
+                          'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/service-account-role-config.yaml'
+                      ]
+                      
+                      for url in urls:
+                          client.put_object(
+                              Body=get_data(url),
+                              Bucket=os.getenv('TEMPLATE_BUCKET_NAME'),
+                              Key=f'eks/{os.path.basename(url)}'
+                          )
+                      
+                      send(event, context, SUCCESS, {}, None)
+                    
+              except Exception as e:
+                  print(str(e))
+                  traceback.print_exc()
+                  send(event, context, FAILED, {}, None)
+
+  TemplatesFunctionExecution:
+    Type: Custom::GetTemplates
+    Properties:
+      ServiceToken: !GetAtt TemplatesFunction.Arn
+
+  ### EKS cluster's additional Security Group
   AdditionalSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -150,6 +465,18 @@ Resources:
       GroupId: !GetAtt AdditionalSecurityGroup.GroupId
       SourceSecurityGroupId: !GetAtt AdditionalSecurityGroup.GroupId
 
+  ### Kubernetes Service Account IAM Role config stack
+  ServiceAccountConfig:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub
+        - "https://${domain_name}/eks/service-account-role-config.yaml"
+        - domain_name: !GetAtt TemplatesS3Bucket.DomainName
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+
+  ### EKS cluster
   ClusterRole:
     Type: AWS::IAM::Role
     Properties:
@@ -223,20 +550,6 @@ Resources:
           Value: !Ref ProjectName
       Version: !Ref ClusterVersion
 
-  CoreDnsAddon:
-    Type: AWS::EKS::Addon
-    Properties:
-      AddonName: coredns
-      ClusterName: !Ref Cluster
-      ResolveConflicts: OVERWRITE
-
-  KubeProxyAddon:
-    Type: AWS::EKS::Addon
-    Properties:
-      AddonName: kube-proxy
-      ClusterName: !Ref Cluster
-      ResolveConflicts: OVERWRITE
-
   OidcProvider:
     Type: AWS::IAM::OIDCProvider
     Properties:
@@ -249,9 +562,28 @@ Resources:
         - Key: project
           Value: !Ref ProjectName
 
-  # Service Account Config Custom Resource
-  ServiceAccountRoleConfigRole:
+  ### Kubernetes addons for EKS cluster
+  Addons:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub
+        - "https://${domain_name}/eks/addons.yaml"
+        - domain_name: !GetAtt TemplatesS3Bucket.DomainName
+      Parameters:
+        ClusterName: !Ref Cluster
+        ClusterOidcProvider: !Ref OidcProvider
+        ClusterOidcIssuerUrl: !GetAtt Cluster.OIDCIssuerURL
+        VpcCniRoleName: !Ref VpcCniRoleName
+        ServiceAccountRoleConfigArn: !GetAtt ServiceAccountConfig.Outputs.ServiceAccountRoleConfigArn
+        ProjectName: !Ref ProjectName
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+
+  ### Node - Nodegroup
+  NodegroupRole:
     Type: AWS::IAM::Role
+    Condition: UseNodegroup
     Properties:
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -259,1048 +591,662 @@ Resources:
           - Effect: Allow
             Principal:
               Service:
-                - lambda.amazonaws.com
+                - ec2.amazonaws.com
             Action:
-              - sts:AssumeRole
+              - "sts:AssumeRole"
       Path: /
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-        - arn:aws:iam::aws:policy/IAMFullAccess
-
-  ServiceAccountRoleConfigFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      Runtime: python3.9
-      Handler: index.lambda_handler
-      Role: !GetAtt ServiceAccountRoleConfigRole.Arn
-      Timeout: 10
-      Code:
-        ZipFile: |
-          from __future__ import print_function
-          import urllib3
-          import json
-          import boto3
-          import traceback
-
-          SUCCESS = "SUCCESS"
-          FAILED = "FAILED"
-
-          http = urllib3.PoolManager()
-
-          class NoValueError(Exception):
-              def __init__(self, *args: object) -> None:
-                  super().__init__(*args)
-
-
-          def send(event, context, responseStatus, responseData, physicalResourceId=None, noEcho=False, reason=None):
-              responseUrl = event['ResponseURL']
-
-              print(responseUrl)
-
-              responseBody = {
-                  'Status' : responseStatus,
-                  'Reason' : reason or "See the details in CloudWatch Log Stream: {}".format(context.log_stream_name),
-                  'PhysicalResourceId' : physicalResourceId or context.log_stream_name,
-                  'StackId' : event['StackId'],
-                  'RequestId' : event['RequestId'],
-                  'LogicalResourceId' : event['LogicalResourceId'],
-                  'NoEcho' : noEcho,
-                  'Data' : responseData
-              }
-
-              json_responseBody = json.dumps(responseBody)
-
-              print("Response body:")
-              print(json_responseBody)
-
-              headers = {
-                  'content-type' : '',
-                  'content-length' : str(len(json_responseBody))
-              }
-
-              try:
-                  response = http.request('PUT', responseUrl, headers=headers, body=json_responseBody)
-                  print("Status code:", response.status)
-
-
-              except Exception as e:
-
-                  print("send(..) failed executing http.request(..):", e)
-
-          def lambda_handler(event, context):
-              print(event)
-
-              if event['RequestType'] == 'Delete':
-                  send(event, context, SUCCESS, {}, None)
-              
-              else:
-                  try:
-                      client = boto3.client('iam')
-
-                      role_name = event['ResourceProperties'].get('RoleName', None)
-                      oidc_issuer_url = event['ResourceProperties'].get('OidcIssuerUrl')
-                      oidc_arn = event['ResourceProperties'].get('OidcArn')
-                      namespace = event['ResourceProperties'].get('Namespace', None)
-                      serviceaccount = event['ResourceProperties'].get('ServiceAccount', None)
-
-                      if not role_name:
-                          raise NoValueError('RoleName')
-                      else:
-                          client.get_role(RoleName=role_name)
-
-                      if not oidc_issuer_url:
-                          raise NoValueError('OidcIssuerUrl')
-
-                      if not oidc_arn:
-                          raise NoValueError('OidcArn')
-
-                      if not namespace:
-                          raise NoValueError('Namespace')
-
-                      if not serviceaccount:
-                          raise NoValueError('ServiceAccount')
-
-
-                      
-                      oidc_issuer_url = oidc_issuer_url.replace('https://', '')
-
-                      policy_document = {
-                          'Version': '2012-10-17',
-                          'Statement': [
-                              {
-                                  'Effect': 'Allow',
-                                  'Principal': {
-                                      'Federated': oidc_arn
-                                  },
-                                  'Action': 'sts:AssumeRoleWithWebIdentity',
-                                  'Condition': {
-                                      'StringEquals': {
-                                          f'{oidc_issuer_url}:aud': 'sts.amazonaws.com',
-                                          f'{oidc_issuer_url}:sub': f'system:serviceaccount:{namespace}:{serviceaccount}'
-                                      }
-                                  }
-                              }
-                          ]
-                      }
-
-                      client.update_assume_role_policy(
-                          RoleName=role_name,
-                          PolicyDocument=json.dumps(policy_document)
-                      )
-
-                      send(event, context, SUCCESS, {}, None)
-                  
-                  except NoValueError as e:
-                      send(event, context, FAILED, {}, None, reason=f"Cannot found value '{e}'.")
-                  
-                  except client.exceptions.NoSuchEntityException:
-                      send(event, context, FAILED, {}, None, reason=f"Cannot found IAM role '{role_name}'.")
-                  
-                  except Exception as e:
-                      print(str(e))
-                      traceback.print_exc()
-                      send(event, context, FAILED, {}, None)
-
-  ############################################################
-
-  ### vpc cni addon
-  VpcCniRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Federated: !Ref OidcProvider
-            Action:
-              - "sts:AssumeRoleWithWebIdentity"
-      Path: /
-      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
         - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
-      RoleName: !If
-        - UseVpcCniRoleName
-        - !Ref VpcCniRoleName
-        - !Sub "${ClusterName}-vpc-cni-role"
-      Tags:
-        - Key: Name
-          Value: !If
-            - UseVpcCniRoleName
-            - !Ref VpcCniRoleName
-            - !Sub "${ClusterName}-vpc-cni-role"
-        - Key: project
-          Value: !Ref ProjectName
+      Policies: !If
+        - UseIpv6
+        - - PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - ec2:AssignIpv6Addresses
+                    - ec2:DescribeInstances
+                    - ec2:DescribeTags
+                    - ec2:DescribeNetworkInterfaces
+                    - ec2:DescribeInstanceTypes
+                  Resource: "*"
+                - Effect: Allow
+                  Action:
+                    - ec2:CreateTags
+                  Resource:
+                    - arn:aws:ec2:*:*:network-interface/*
+            PolicyName: AmazonEKS_CNI_IPv6_Policy
+        - !Ref AWS::NoValue
+      RoleName: !Ref NodeRoleName
 
-  VpcCniRoleConfig:
-    Type: Custom::ServiceAccountRoleConfig
+  NodegroupRoleInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Condition: UseNodegroup
     Properties:
-      ServiceToken: !GetAtt ServiceAccountRoleConfigFunction.Arn
-      RoleName: !Ref VpcCniRole
-      OidcIssuerUrl: !GetAtt Cluster.OIDCIssuerURL
-      OidcArn: !Ref OidcProvider
-      Namespace: kube-system
-      ServiceAccount: aws-node
+      Path: "/"
+      InstanceProfileName: !Ref NodeRoleName
+      Roles:
+        - !Ref NodegroupRole
 
-  VpcCniAddon:
-    Type: AWS::EKS::Addon
-    DependsOn: VpcCniRoleConfig
+  Nodegroup:
+    Type: AWS::EKS::Nodegroup
+    Condition: UseNodegroup
+    DependsOn: NodegroupRoleInstanceProfile
     Properties:
-      AddonName: vpc-cni
+      AmiType: !Ref AmiType
+      CapacityType: !Ref CapacityType
       ClusterName: !Ref Cluster
-      ResolveConflicts: OVERWRITE
-      ServiceAccountRoleArn: !GetAtt VpcCniRole.Arn
+      DiskSize: !Ref DiskSize # please disable when you use launch template
+      # ForceUpdateEnabled: true or false # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-eks-nodegroup.html#cfn-eks-nodegroup-forceupdateenabled
+      InstanceTypes: !Ref InstanceTypes # please disable when you use launch template
+      # Labels: # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-eks-nodegroup.html#cfn-eks-nodegroup-labels
+      #   Key1: Value2
+      #   Key2: Value2
+      # LaunchTemplate: # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-eks-nodegroup-launchtemplatespecification.html
+      #   Id:
+      #   Name:
+      #   Version:
+      NodegroupName: !Ref NodegroupName
+      NodeRole: !GetAtt NodegroupRole.Arn
+      # RemoteAccess: # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-eks-nodegroup-remoteaccess.html
+      #   Ec2SshKey:
+      #   SourceSecurityGroups:
+      #     - ""
+      ScalingConfig:
+        DesiredSize: !Ref ScalingDesiredSize
+        MaxSize: !Ref ScalingMaxSize
+        MinSize: !Ref ScalingMinSize
+      Subnets: !Ref SubnetIds
+      Tags:
+        project: !Ref ProjectName
+        # key1: value1
+        # key2: value2
+      # Taints: # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-eks-nodegroup-taint.html
+      #   - Effect: NO_EXECUTE | NO_SCHEDULE | PREFER_NO_SCHEDULE
+      #     Key: "1" ~ "63"
+      #     Value: "0" ~ "63"
+      UpdateConfig: # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-eks-nodegroup-updateconfig.html
+        MaxUnavailable: 1
+        # MaxUnavailablePercentage: "1" ~ "100"
 
   ### AWS Load Balancer Controller
-  LoadBalancerControllerRole:
-    Type: AWS::IAM::Role
+  AwsLoadBalancerController:
+    Type: AWS::CloudFormation::Stack
     Condition: IsEnableLoadBalancerController
     Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Federated: !Ref OidcProvider
-            Action:
-              - "sts:AssumeRoleWithWebIdentity"
-      Path: /
-      Policies:
-        - PolicyName: AWSLoadBalancerControllerIAMPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - iam:CreateServiceLinkedRole
-                Resource: "*"
-                Condition:
-                  StringEquals:
-                    iam:AWSServiceName: elasticloadbalancing.amazonaws.com
-              - Effect: Allow
-                Action:
-                  - ec2:DescribeAccountAttributes
-                  - ec2:DescribeAddresses
-                  - ec2:DescribeAvailabilityZones
-                  - ec2:DescribeInternetGateways
-                  - ec2:DescribeVpcs
-                  - ec2:DescribeVpcPeeringConnections
-                  - ec2:DescribeSubnets
-                  - ec2:DescribeSecurityGroups
-                  - ec2:DescribeInstances
-                  - ec2:DescribeNetworkInterfaces
-                  - ec2:DescribeTags
-                  - ec2:GetCoipPoolUsage
-                  - ec2:DescribeCoipPools
-                  - elasticloadbalancing:DescribeLoadBalancers
-                  - elasticloadbalancing:DescribeLoadBalancerAttributes
-                  - elasticloadbalancing:DescribeListeners
-                  - elasticloadbalancing:DescribeListenerCertificates
-                  - elasticloadbalancing:DescribeSSLPolicies
-                  - elasticloadbalancing:DescribeRules
-                  - elasticloadbalancing:DescribeTargetGroups
-                  - elasticloadbalancing:DescribeTargetGroupAttributes
-                  - elasticloadbalancing:DescribeTargetHealth
-                  - elasticloadbalancing:DescribeTags
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - cognito-idp:DescribeUserPoolClient
-                  - acm:ListCertificates
-                  - acm:DescribeCertificate
-                  - iam:ListServerCertificates
-                  - iam:GetServerCertificate
-                  - waf-regional:GetWebACL
-                  - waf-regional:GetWebACLForResource
-                  - waf-regional:AssociateWebACL
-                  - waf-regional:DisassociateWebACL
-                  - wafv2:GetWebACL
-                  - wafv2:GetWebACLForResource
-                  - wafv2:AssociateWebACL
-                  - wafv2:DisassociateWebACL
-                  - shield:GetSubscriptionState
-                  - shield:DescribeProtection
-                  - shield:CreateProtection
-                  - shield:DeleteProtection
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - ec2:AuthorizeSecurityGroupIngress
-                  - ec2:RevokeSecurityGroupIngress
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - ec2:CreateSecurityGroup
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - ec2:CreateTags
-                Resource: arn:aws:ec2:*:*:security-group/*
-                Condition:
-                  StringEquals:
-                    ec2:CreateAction: CreateSecurityGroup
-                  "Null":
-                    aws:RequestTag/elbv2.k8s.aws/cluster: "false"
-              - Effect: Allow
-                Action:
-                  - ec2:CreateTags
-                  - ec2:DeleteTags
-                Resource: arn:aws:ec2:*:*:security-group/*
-                Condition:
-                  "Null":
-                    aws:RequestTag/elbv2.k8s.aws/cluster: "true"
-                    aws:ResourceTag/elbv2.k8s.aws/cluster: "false"
-              - Effect: Allow
-                Action:
-                  - ec2:AuthorizeSecurityGroupIngress
-                  - ec2:RevokeSecurityGroupIngress
-                  - ec2:DeleteSecurityGroup
-                Resource: "*"
-                Condition:
-                  "Null":
-                    aws:ResourceTag/elbv2.k8s.aws/cluster: "false"
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:CreateLoadBalancer
-                  - elasticloadbalancing:CreateTargetGroup
-                Resource: "*"
-                Condition:
-                  "Null":
-                    aws:RequestTag/elbv2.k8s.aws/cluster: "false"
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:CreateListener
-                  - elasticloadbalancing:DeleteListener
-                  - elasticloadbalancing:CreateRule
-                  - elasticloadbalancing:DeleteRule
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:AddTags
-                  - elasticloadbalancing:RemoveTags
-                Resource:
-                  - arn:aws:elasticloadbalancing:*:*:targetgroup/*/*
-                  - arn:aws:elasticloadbalancing:*:*:loadbalancer/net/*/*
-                  - arn:aws:elasticloadbalancing:*:*:loadbalancer/app/*/*
-                Condition:
-                  "Null":
-                    aws:RequestTag/elbv2.k8s.aws/cluster: "true"
-                    aws:ResourceTag/elbv2.k8s.aws/cluster: "false"
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:AddTags
-                  - elasticloadbalancing:RemoveTags
-                Resource:
-                  - arn:aws:elasticloadbalancing:*:*:listener/net/*/*/*
-                  - arn:aws:elasticloadbalancing:*:*:listener/app/*/*/*
-                  - arn:aws:elasticloadbalancing:*:*:listener-rule/net/*/*/*
-                  - arn:aws:elasticloadbalancing:*:*:listener-rule/app/*/*/*
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:ModifyLoadBalancerAttributes
-                  - elasticloadbalancing:SetIpAddressType
-                  - elasticloadbalancing:SetSecurityGroups
-                  - elasticloadbalancing:SetSubnets
-                  - elasticloadbalancing:DeleteLoadBalancer
-                  - elasticloadbalancing:ModifyTargetGroup
-                  - elasticloadbalancing:ModifyTargetGroupAttributes
-                  - elasticloadbalancing:DeleteTargetGroup
-                Resource: "*"
-                Condition:
-                  "Null":
-                    aws:ResourceTag/elbv2.k8s.aws/cluster: "false"
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:RegisterTargets
-                  - elasticloadbalancing:DeregisterTargets
-                Resource: arn:aws:elasticloadbalancing:*:*:targetgroup/*/*
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:SetWebAcl
-                  - elasticloadbalancing:ModifyListener
-                  - elasticloadbalancing:AddListenerCertificates
-                  - elasticloadbalancing:RemoveListenerCertificates
-                  - elasticloadbalancing:ModifyRule
-                Resource: "*"
-      RoleName: !If
-        - UseLoadBalancerControllerRoleName
-        - !Ref LoadBalancerControllerRoleName
-        - !Sub "${ClusterName}-aws-load-balancer-controller-role"
+      TemplateURL: !Sub
+        - "https://${domain_name}/eks/aws-load-balancer-controller.yaml"
+        - domain_name: !GetAtt TemplatesS3Bucket.DomainName
+      Parameters:
+        ClusterName: !Ref Cluster
+        ClusterOidcProvider: !Ref OidcProvider
+        ClusterOidcIssuerUrl: !GetAtt Cluster.OIDCIssuerURL
+        LoadBalancerControllerRoleName: !Ref LoadBalancerControllerRoleName
+        ServiceAccountRoleConfigArn: !GetAtt ServiceAccountConfig.Outputs.ServiceAccountRoleConfigArn
+        ProjectName: !Ref ProjectName
       Tags:
-        - Key: Name
-          Value: !If
-            - UseLoadBalancerControllerRoleName
-            - !Ref LoadBalancerControllerRoleName
-            - !Sub "${ClusterName}-aws-load-balancer-controller-role"
         - Key: project
           Value: !Ref ProjectName
-
-  LoadBalancerControllerRoleConfig:
-    Type: Custom::ServiceAccountRoleConfig
-    Condition: IsEnableLoadBalancerController
-    Properties:
-      ServiceToken: !GetAtt ServiceAccountRoleConfigFunction.Arn
-      RoleName: !Ref LoadBalancerControllerRole
-      OidcIssuerUrl: !GetAtt Cluster.OIDCIssuerURL
-      OidcArn: !Ref OidcProvider
-      Namespace: kube-system
-      ServiceAccount: aws-load-balancer-controller
-
-  LoadBalancerControllerServiceAccount:
-    Type: AWSQS::Kubernetes::Resource
-    Condition: IsEnableLoadBalancerController
-    Properties:
-      ClusterName: !Ref Cluster
-      Namespace: kube-system
-      Manifest: !Sub
-        - |
-          apiVersion: v1
-          kind: ServiceAccount
-          metadata:
-            labels:
-              app.kubernetes.io/component: controller
-              app.kubernetes.io/name: aws-load-balancer-controller
-            name: aws-load-balancer-controller
-            namespace: kube-system
-            annotations:
-              eks.amazonaws.com/role-arn: ${load_balancer_controller_role}
-        - load_balancer_controller_role: !GetAtt LoadBalancerControllerRole.Arn
-
-  LoadBalancerControllerHelmChart:
-    Type: AWSQS::Kubernetes::Helm
-    Condition: IsEnableLoadBalancerController
-    DependsOn: LoadBalancerControllerServiceAccount
-    Properties:
-      ClusterID: !Ref Cluster
-      Name: aws-load-balancer-controller
-      Namespace: kube-system
-      Repository: https://aws.github.io/eks-charts
-      Chart: eks/aws-load-balancer-controller
-      Values:
-        clusterName: !Ref Cluster
-        serviceAccount.create: "false"
-        serviceAccount.name: aws-load-balancer-controller
 
   ### External DNS
-  ExternalDnsRole:
-    Type: AWS::IAM::Role
+  ExternalDns:
+    Type: AWS::CloudFormation::Stack
     Condition: IsEnableExternalDns
     Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Federated: !Ref OidcProvider
-            Action:
-              - "sts:AssumeRoleWithWebIdentity"
-      Path: /
-      Policies:
-        - PolicyName: AllowExternalDNSUpdates
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - route53:ChangeResourceRecordSets
-                Resource: arn:aws:route53:::hostedzone/*
-              - Effect: Allow
-                Action:
-                  - route53:ListHostedZones
-                  - route53:ListResourceRecordSets
-                Resource: "*"
-      RoleName: !If
-        - UseExternalDnsRoleName
-        - !Ref ExternalDnsRoleName
-        - !Sub "${ClusterName}-external-dns-role"
+      TemplateURL: !Sub
+        - "https://${domain_name}/eks/external-dns.yaml"
+        - domain_name: !GetAtt TemplatesS3Bucket.DomainName
+      Parameters:
+        ClusterName: !Ref Cluster
+        ClusterOidcProvider: !Ref OidcProvider
+        ClusterOidcIssuerUrl: !GetAtt Cluster.OIDCIssuerURL
+        ExternalDnsRoleName: !Ref ExternalDnsRoleName
+        ServiceAccountRoleConfigArn: !GetAtt ServiceAccountConfig.Outputs.ServiceAccountRoleConfigArn
+        ProjectName: !Ref ProjectName
       Tags:
-        - Key: Name
-          Value: !If
-            - UseExternalDnsRoleName
-            - !Ref ExternalDnsRoleName
-            - !Sub "${ClusterName}-external-dns-role"
         - Key: project
           Value: !Ref ProjectName
-
-  ExternalDnsRoleConfig:
-    Type: Custom::ServiceAccountRoleConfig
-    Condition: IsEnableExternalDns
-    Properties:
-      ServiceToken: !GetAtt ServiceAccountRoleConfigFunction.Arn
-      RoleName: !Ref ExternalDnsRole
-      OidcIssuerUrl: !GetAtt Cluster.OIDCIssuerURL
-      OidcArn: !Ref OidcProvider
-      Namespace: external-dns
-      ServiceAccount: external-dns
-
-  ExternalDnsNamespace:
-    Type: AWSQS::Kubernetes::Resource
-    Condition: IsEnableExternalDns
-    Properties:
-      ClusterName: !Ref Cluster
-      Namespace: kube-system
-      Manifest: |
-        apiVersion: v1
-        kind: Namespace
-        metadata:
-          name: external-dns
-
-  ExternalDnsServiceAccount:
-    Type: AWSQS::Kubernetes::Resource
-    Condition: IsEnableExternalDns
-    DependsOn: ExternalDnsNamespace
-    Properties:
-      ClusterName: !Ref Cluster
-      Namespace: external-dns
-      Manifest: !Sub
-        - |
-          apiVersion: v1
-          kind: ServiceAccount
-          metadata:
-            name: external-dns
-            namespace: external-dns
-            annotations:
-              eks.amazonaws.com/role-arn: ${external_dns_role}
-              meta.helm.sh/release-name: external-dns
-              meta.helm.sh/release-namespace: external-dns
-            labels:
-              app.kubernetes.io/managed-by: Helm
-        - external_dns_role: !GetAtt ExternalDnsRole.Arn
-
-  ExternalDnsHelmChart:
-    Type: AWSQS::Kubernetes::Helm
-    Condition: IsEnableExternalDns
-    DependsOn: ExternalDnsServiceAccount
-    Properties:
-      ClusterID: !Ref Cluster
-      Name: external-dns
-      Namespace: external-dns
-      Repository: https://kubernetes-sigs.github.io/external-dns/
-      Chart: external-dns/external-dns
-      ValueYaml: |
-        serviceAccount.create: false
-        serviceAccount.name: external-dns
-        rbac.create: 'true'
-        provider: aws
-        policy: sync
-        registry: txt
-        txtOwnerId: external-dns
-        extraArgs:
-          - --aws-zone-type=private
 
   ### Horizontal Pod Autoscaler
-  HorizontalPodAutoscalerResources:
-    Type: AWSQS::Kubernetes::Resource
+  HorizontalPodAutoscaler:
+    Type: AWS::CloudFormation::Stack
     Condition: IsEnableHorizontalPodAutoscaler
     Properties:
-      ClusterName: !Ref Cluster
-      Namespace: kube-system
-      Url: https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
-
-  ### Cluster Autoscaler
-  ClusterAutoscalerRole:
-    Type: AWS::IAM::Role
-    Condition: IsEnableClusterAutoscaler
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Federated: !Ref OidcProvider
-            Action:
-              - "sts:AssumeRoleWithWebIdentity"
-      Path: /
-      Policies:
-        - PolicyName: AmazonEKSClusterAutoscalerPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Sid: VisualEditor0
-                Effect: Allow
-                Action:
-                  - autoscaling:SetDesiredCapacity
-                  - autoscaling:TerminateInstanceInAutoScalingGroup
-                Resource: "*"
-                Condition:
-                  StringEquals:
-                    aws:ResourceTag/k8s.io/cluster-autoscaler/my-cluster: owned
-              - Sid: VisualEditor1
-                Effect: Allow
-                Action:
-                  - autoscaling:DescribeAutoScalingInstances
-                  - autoscaling:DescribeAutoScalingGroups
-                  - ec2:DescribeLaunchTemplateVersions
-                  - autoscaling:DescribeTags
-                  - autoscaling:DescribeLaunchConfigurations
-                Resource: "*"
-      RoleName: !If
-        - UseClusterAutoscalerRoleName
-        - !Ref ClusterAutoscalerRoleName
-        - !Sub "${ClusterName}-cluster-autoscaler-role"
+      TemplateURL: !Sub
+        - "https://${domain_name}/eks/horizontal-pod-autoscaler.yaml"
+        - domain_name: !GetAtt TemplatesS3Bucket.DomainName
+      Parameters:
+        ClusterName: !Ref Cluster
       Tags:
-        - Key: Name
-          Value: !If
-            - UseClusterAutoscalerRoleName
-            - !Ref ClusterAutoscalerRoleName
-            - !Sub "${ClusterName}-cluster-autoscaler-role"
+        - Key: project
+          Value: !Ref ProjectName
+  
+  ### Cluster Autoscaler
+  ClusterAutoscaler:
+    Type: AWS::CloudFormation::Stack
+    Condition: IsEnableExternalDns
+    Properties:
+      TemplateURL: !Sub
+        - "https://${domain_name}/eks/clsuter-autoscaler.yaml"
+        - domain_name: !GetAtt TemplatesS3Bucket.DomainName
+      Parameters:
+        ClusterName: !Ref Cluster
+        ClusterOidcProvider: !Ref OidcProvider
+        ClusterOidcIssuerUrl: !GetAtt Cluster.OIDCIssuerURL
+        ClusterAutoscalerRoleName: !Ref ClusterAutoscalerRoleName
+        ServiceAccountRoleConfigArn: !GetAtt ServiceAccountConfig.Outputs.ServiceAccountRoleConfigArn
+        ProjectName: !Ref ProjectName
+      Tags:
         - Key: project
           Value: !Ref ProjectName
 
-  ClusterAutoscalerRoleConfig:
-    Type: Custom::ServiceAccountRoleConfig
-    Condition: IsEnableClusterAutoscaler
-    Properties:
-      ServiceToken: !GetAtt ServiceAccountRoleConfigFunction.Arn
-      RoleName: !Ref ClusterAutoscalerRole
-      OidcIssuerUrl: !GetAtt Cluster.OIDCIssuerURL
-      OidcArn: !Ref OidcProvider
-      Namespace: kube-system
-      ServiceAccount: cluster-autoscaler
-  
-  ClusterAutoscalerResources:
-    Type: AWSQS::Kubernetes::Resource
-    Condition: IsEnableClusterAutoscaler
-    DependsOn: ClusterAutoscalerRoleConfig
-    Properties:
-      ClusterName: !Ref Cluster
-      Namespace: kube-system
-      Manifest: !Sub
-        - |
-          apiVersion: v1
-          kind: ServiceAccount
-          metadata:
-            labels:
-              k8s-addon: cluster-autoscaler.addons.k8s.io
-              k8s-app: cluster-autoscaler
-            name: cluster-autoscaler
-            namespace: kube-system
-          ---
-          apiVersion: rbac.authorization.k8s.io/v1
-          kind: ClusterRole
-          metadata:
-            name: cluster-autoscaler
-            labels:
-              k8s-addon: cluster-autoscaler.addons.k8s.io
-              k8s-app: cluster-autoscaler
-          rules:
-            - apiGroups: [""]
-              resources: ["events", "endpoints"]
-              verbs: ["create", "patch"]
-            - apiGroups: [""]
-              resources: ["pods/eviction"]
-              verbs: ["create"]
-            - apiGroups: [""]
-              resources: ["pods/status"]
-              verbs: ["update"]
-            - apiGroups: [""]
-              resources: ["endpoints"]
-              resourceNames: ["cluster-autoscaler"]
-              verbs: ["get", "update"]
-            - apiGroups: [""]
-              resources: ["nodes"]
-              verbs: ["watch", "list", "get", "update"]
-            - apiGroups: [""]
-              resources:
-                - "namespaces"
-                - "pods"
-                - "services"
-                - "replicationcontrollers"
-                - "persistentvolumeclaims"
-                - "persistentvolumes"
-              verbs: ["watch", "list", "get"]
-            - apiGroups: ["extensions"]
-              resources: ["replicasets", "daemonsets"]
-              verbs: ["watch", "list", "get"]
-            - apiGroups: ["policy"]
-              resources: ["poddisruptionbudgets"]
-              verbs: ["watch", "list"]
-            - apiGroups: ["apps"]
-              resources: ["statefulsets", "replicasets", "daemonsets"]
-              verbs: ["watch", "list", "get"]
-            - apiGroups: ["storage.k8s.io"]
-              resources: ["storageclasses", "csinodes", "csidrivers", "csistoragecapacities"]
-              verbs: ["watch", "list", "get"]
-            - apiGroups: ["batch", "extensions"]
-              resources: ["jobs"]
-              verbs: ["get", "list", "watch", "patch"]
-            - apiGroups: ["coordination.k8s.io"]
-              resources: ["leases"]
-              verbs: ["create"]
-            - apiGroups: ["coordination.k8s.io"]
-              resourceNames: ["cluster-autoscaler"]
-              resources: ["leases"]
-              verbs: ["get", "update"]
-          ---
-          apiVersion: rbac.authorization.k8s.io/v1
-          kind: Role
-          metadata:
-            name: cluster-autoscaler
-            namespace: kube-system
-            labels:
-              k8s-addon: cluster-autoscaler.addons.k8s.io
-              k8s-app: cluster-autoscaler
-          rules:
-            - apiGroups: [""]
-              resources: ["configmaps"]
-              verbs: ["create","list","watch"]
-            - apiGroups: [""]
-              resources: ["configmaps"]
-              resourceNames: ["cluster-autoscaler-status", "cluster-autoscaler-priority-expander"]
-              verbs: ["delete", "get", "update", "watch"]
+  # ### Cluster Autoscaler
+  # ClusterAutoscalerRole:
+  #   Type: AWS::IAM::Role
+  #   Condition: IsEnableClusterAutoscaler
+  #   Properties:
+  #     AssumeRolePolicyDocument:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Federated: !Ref OidcProvider
+  #           Action:
+  #             - "sts:AssumeRoleWithWebIdentity"
+  #     Path: /
+  #     Policies:
+  #       - PolicyName: AmazonEKSClusterAutoscalerPolicy
+  #         PolicyDocument:
+  #           Version: "2012-10-17"
+  #           Statement:
+  #             - Sid: VisualEditor0
+  #               Effect: Allow
+  #               Action:
+  #                 - autoscaling:SetDesiredCapacity
+  #                 - autoscaling:TerminateInstanceInAutoScalingGroup
+  #               Resource: "*"
+  #               Condition:
+  #                 StringEquals:
+  #                   aws:ResourceTag/k8s.io/cluster-autoscaler/my-cluster: owned
+  #             - Sid: VisualEditor1
+  #               Effect: Allow
+  #               Action:
+  #                 - autoscaling:DescribeAutoScalingInstances
+  #                 - autoscaling:DescribeAutoScalingGroups
+  #                 - ec2:DescribeLaunchTemplateVersions
+  #                 - autoscaling:DescribeTags
+  #                 - autoscaling:DescribeLaunchConfigurations
+  #               Resource: "*"
+  #     RoleName: !If
+  #       - UseClusterAutoscalerRoleName
+  #       - !Ref ClusterAutoscalerRoleName
+  #       - !Sub "${ClusterName}-cluster-autoscaler-role"
+  #     Tags:
+  #       - Key: Name
+  #         Value: !If
+  #           - UseClusterAutoscalerRoleName
+  #           - !Ref ClusterAutoscalerRoleName
+  #           - !Sub "${ClusterName}-cluster-autoscaler-role"
+  #       - Key: project
+  #         Value: !Ref ProjectName
 
-          ---
-          apiVersion: rbac.authorization.k8s.io/v1
-          kind: ClusterRoleBinding
-          metadata:
-            name: cluster-autoscaler
-            labels:
-              k8s-addon: cluster-autoscaler.addons.k8s.io
-              k8s-app: cluster-autoscaler
-          roleRef:
-            apiGroup: rbac.authorization.k8s.io
-            kind: ClusterRole
-            name: cluster-autoscaler
-          subjects:
-            - kind: ServiceAccount
-              name: cluster-autoscaler
-              namespace: kube-system
+  # ClusterAutoscalerRoleConfig:
+  #   Type: Custom::ServiceAccountRoleConfig
+  #   Condition: IsEnableClusterAutoscaler
+  #   Properties:
+  #     ServiceToken: !GetAtt ServiceAccountRoleConfigFunction.Arn
+  #     RoleName: !Ref ClusterAutoscalerRole
+  #     OidcIssuerUrl: !GetAtt Cluster.OIDCIssuerURL
+  #     OidcArn: !Ref OidcProvider
+  #     Namespace: kube-system
+  #     ServiceAccount: cluster-autoscaler
 
-          ---
-          apiVersion: rbac.authorization.k8s.io/v1
-          kind: RoleBinding
-          metadata:
-            name: cluster-autoscaler
-            namespace: kube-system
-            labels:
-              k8s-addon: cluster-autoscaler.addons.k8s.io
-              k8s-app: cluster-autoscaler
-          roleRef:
-            apiGroup: rbac.authorization.k8s.io
-            kind: Role
-            name: cluster-autoscaler
-          subjects:
-            - kind: ServiceAccount
-              name: cluster-autoscaler
-              namespace: kube-system
+  # ClusterAutoscalerResources:
+  #   Type: AWSQS::Kubernetes::Resource
+  #   Condition: IsEnableClusterAutoscaler
+  #   DependsOn: ClusterAutoscalerRoleConfig
+  #   Properties:
+  #     ClusterName: !Ref Cluster
+  #     Namespace: kube-system
+  #     Manifest: !Sub
+  #       - |
+  #         apiVersion: v1
+  #         kind: ServiceAccount
+  #         metadata:
+  #           labels:
+  #             k8s-addon: cluster-autoscaler.addons.k8s.io
+  #             k8s-app: cluster-autoscaler
+  #           name: cluster-autoscaler
+  #           namespace: kube-system
+  #         ---
+  #         apiVersion: rbac.authorization.k8s.io/v1
+  #         kind: ClusterRole
+  #         metadata:
+  #           name: cluster-autoscaler
+  #           labels:
+  #             k8s-addon: cluster-autoscaler.addons.k8s.io
+  #             k8s-app: cluster-autoscaler
+  #         rules:
+  #           - apiGroups: [""]
+  #             resources: ["events", "endpoints"]
+  #             verbs: ["create", "patch"]
+  #           - apiGroups: [""]
+  #             resources: ["pods/eviction"]
+  #             verbs: ["create"]
+  #           - apiGroups: [""]
+  #             resources: ["pods/status"]
+  #             verbs: ["update"]
+  #           - apiGroups: [""]
+  #             resources: ["endpoints"]
+  #             resourceNames: ["cluster-autoscaler"]
+  #             verbs: ["get", "update"]
+  #           - apiGroups: [""]
+  #             resources: ["nodes"]
+  #             verbs: ["watch", "list", "get", "update"]
+  #           - apiGroups: [""]
+  #             resources:
+  #               - "namespaces"
+  #               - "pods"
+  #               - "services"
+  #               - "replicationcontrollers"
+  #               - "persistentvolumeclaims"
+  #               - "persistentvolumes"
+  #             verbs: ["watch", "list", "get"]
+  #           - apiGroups: ["extensions"]
+  #             resources: ["replicasets", "daemonsets"]
+  #             verbs: ["watch", "list", "get"]
+  #           - apiGroups: ["policy"]
+  #             resources: ["poddisruptionbudgets"]
+  #             verbs: ["watch", "list"]
+  #           - apiGroups: ["apps"]
+  #             resources: ["statefulsets", "replicasets", "daemonsets"]
+  #             verbs: ["watch", "list", "get"]
+  #           - apiGroups: ["storage.k8s.io"]
+  #             resources: ["storageclasses", "csinodes", "csidrivers", "csistoragecapacities"]
+  #             verbs: ["watch", "list", "get"]
+  #           - apiGroups: ["batch", "extensions"]
+  #             resources: ["jobs"]
+  #             verbs: ["get", "list", "watch", "patch"]
+  #           - apiGroups: ["coordination.k8s.io"]
+  #             resources: ["leases"]
+  #             verbs: ["create"]
+  #           - apiGroups: ["coordination.k8s.io"]
+  #             resourceNames: ["cluster-autoscaler"]
+  #             resources: ["leases"]
+  #             verbs: ["get", "update"]
+  #         ---
+  #         apiVersion: rbac.authorization.k8s.io/v1
+  #         kind: Role
+  #         metadata:
+  #           name: cluster-autoscaler
+  #           namespace: kube-system
+  #           labels:
+  #             k8s-addon: cluster-autoscaler.addons.k8s.io
+  #             k8s-app: cluster-autoscaler
+  #         rules:
+  #           - apiGroups: [""]
+  #             resources: ["configmaps"]
+  #             verbs: ["create","list","watch"]
+  #           - apiGroups: [""]
+  #             resources: ["configmaps"]
+  #             resourceNames: ["cluster-autoscaler-status", "cluster-autoscaler-priority-expander"]
+  #             verbs: ["delete", "get", "update", "watch"]
 
-          ---
-          apiVersion: apps/v1
-          kind: Deployment
-          metadata:
-            name: cluster-autoscaler
-            namespace: kube-system
-            labels:
-              app: cluster-autoscaler
-          spec:
-            replicas: 1
-            selector:
-              matchLabels:
-                app: cluster-autoscaler
-            template:
-              metadata:
-                labels:
-                  app: cluster-autoscaler
-                annotations:
-                  prometheus.io/scrape: 'true'
-                  prometheus.io/port: '8085'
-              spec:
-                priorityClassName: system-cluster-critical
-                securityContext:
-                  runAsNonRoot: true
-                  runAsUser: 65534
-                  fsGroup: 65534
-                serviceAccountName: cluster-autoscaler
-                containers:
-                  - image: k8s.gcr.io/autoscaling/cluster-autoscaler:v1.23.0
-                    name: cluster-autoscaler
-                    resources:
-                      limits:
-                        cpu: 100m
-                        memory: 600Mi
-                      requests:
-                        cpu: 100m
-                        memory: 600Mi
-                    command:
-                      - ./cluster-autoscaler
-                      - --v=4
-                      - --stderrthreshold=info
-                      - --cloud-provider=aws
-                      - --skip-nodes-with-local-storage=false
-                      - --expander=least-waste
-                      - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/${cluster_name}
-                      - --balance-similar-node-groups
-                      - --skip-nodes-with-system-pods=false
-                    volumeMounts:
-                      - name: ssl-certs
-                        mountPath: /etc/ssl/certs/ca-certificates.crt #/etc/ssl/certs/ca-bundle.crt for Amazon Linux Worker Nodes
-                        readOnly: true
-                    imagePullPolicy: "Always"
-                volumes:
-                  - name: ssl-certs
-                    hostPath:
-                      path: "/etc/ssl/certs/ca-bundle.crt"
-        - cluster_name: !Ref Cluster
-  
-  ClusterAutoscalerServiceAccountAnnotationUpdate:
-    Type: AWSQS::Kubernetes::Resource
-    Condition: IsEnableClusterAutoscaler
-    DependsOn: ClusterAutoscalerResources
-    Properties:
-      ClusterName: !Ref Cluster
-      Namespace: kube-system
-      Manifest: !Sub
-        - |
-          apiVersion: v1
-          kind: ServiceAccount
-          metadata:
-            labels:
-              k8s-addon: cluster-autoscaler.addons.k8s.io
-              k8s-app: cluster-autoscaler
-            annotations:
-              eks.amazonaws.com/role-arn: ${cluster_autoscaler_role}
-            name: cluster-autoscaler
-            namespace: kube-system
-        - cluster_autoscaler_role: !GetAtt ClusterAutoscalerRole.Arn
-  
-  ClusterAutoscalerDeploymentAnnotationUpdate:
-    Type: AWSQS::Kubernetes::Resource
-    Condition: IsEnableClusterAutoscaler
-    DependsOn: ClusterAutoscalerServiceAccountAnnotationUpdate
-    Properties:
-      ClusterName: !Ref Cluster
-      Namespace: kube-system
-      Manifest: !Sub
-        - |
-          apiVersion: apps/v1
-          kind: Deployment
-          metadata:
-            name: cluster-autoscaler
-            namespace: kube-system
-            labels:
-              app: cluster-autoscaler
-          spec:
-            replicas: 1
-            selector:
-              matchLabels:
-                app: cluster-autoscaler
-            template:
-              metadata:
-                labels:
-                  app: cluster-autoscaler
-                annotations:
-                  prometheus.io/scrape: 'true'
-                  prometheus.io/port: '8085'
-                  cluster-autoscaler.kubernetes.io/safe-to-evict: 'false'
-              spec:
-                priorityClassName: system-cluster-critical
-                securityContext:
-                  runAsNonRoot: true
-                  runAsUser: 65534
-                  fsGroup: 65534
-                serviceAccountName: cluster-autoscaler
-                containers:
-                  - image: k8s.gcr.io/autoscaling/cluster-autoscaler:v1.23.0
-                    name: cluster-autoscaler
-                    resources:
-                      limits:
-                        cpu: 100m
-                        memory: 600Mi
-                      requests:
-                        cpu: 100m
-                        memory: 600Mi
-                    command:
-                      - ./cluster-autoscaler
-                      - --v=4
-                      - --stderrthreshold=info
-                      - --cloud-provider=aws
-                      - --skip-nodes-with-local-storage=false
-                      - --expander=least-waste
-                      - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/${cluster_name}
-                    volumeMounts:
-                      - name: ssl-certs
-                        mountPath: /etc/ssl/certs/ca-certificates.crt #/etc/ssl/certs/ca-bundle.crt for Amazon Linux Worker Nodes
-                        readOnly: true
-                    imagePullPolicy: "Always"
-                volumes:
-                  - name: ssl-certs
-                    hostPath:
-                      path: "/etc/ssl/certs/ca-bundle.crt"
-        - cluster_name: !Ref Cluster
+  #         ---
+  #         apiVersion: rbac.authorization.k8s.io/v1
+  #         kind: ClusterRoleBinding
+  #         metadata:
+  #           name: cluster-autoscaler
+  #           labels:
+  #             k8s-addon: cluster-autoscaler.addons.k8s.io
+  #             k8s-app: cluster-autoscaler
+  #         roleRef:
+  #           apiGroup: rbac.authorization.k8s.io
+  #           kind: ClusterRole
+  #           name: cluster-autoscaler
+  #         subjects:
+  #           - kind: ServiceAccount
+  #             name: cluster-autoscaler
+  #             namespace: kube-system
 
-  ClusterAutoscalerDeploymentContainerUpdate:
-    Type: AWSQS::Kubernetes::Resource
-    Condition: IsEnableClusterAutoscaler
-    DependsOn: ClusterAutoscalerDeploymentAnnotationUpdate
-    Properties:
-      ClusterName: !Ref Cluster
-      Namespace: kube-system
-      Manifest: !Sub
-        - |
-          apiVersion: apps/v1
-          kind: Deployment
-          metadata:
-            name: cluster-autoscaler
-            namespace: kube-system
-            labels:
-              app: cluster-autoscaler
-          spec:
-            replicas: 1
-            selector:
-              matchLabels:
-                app: cluster-autoscaler
-            template:
-              metadata:
-                labels:
-                  app: cluster-autoscaler
-                annotations:
-                  prometheus.io/scrape: 'true'
-                  prometheus.io/port: '8085'
-                  cluster-autoscaler.kubernetes.io/safe-to-evict: 'false'
-              spec:
-                priorityClassName: system-cluster-critical
-                securityContext:
-                  runAsNonRoot: true
-                  runAsUser: 65534
-                  fsGroup: 65534
-                serviceAccountName: cluster-autoscaler
-                containers:
-                  - image: k8s.gcr.io/autoscaling/cluster-autoscaler:v1.23.0
-                    name: cluster-autoscaler
-                    resources:
-                      limits:
-                        cpu: 100m
-                        memory: 600Mi
-                      requests:
-                        cpu: 100m
-                        memory: 600Mi
-                    command:
-                      - ./cluster-autoscaler
-                      - --v=4
-                      - --stderrthreshold=info
-                      - --cloud-provider=aws
-                      - --skip-nodes-with-local-storage=false
-                      - --expander=least-waste
-                      - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/${cluster_name}
-                      - --balance-similar-node-groups
-                      - --skip-nodes-with-system-pods=false
-                    volumeMounts:
-                      - name: ssl-certs
-                        mountPath: /etc/ssl/certs/ca-certificates.crt #/etc/ssl/certs/ca-bundle.crt for Amazon Linux Worker Nodes
-                        readOnly: true
-                    imagePullPolicy: "Always"
-                volumes:
-                  - name: ssl-certs
-                    hostPath:
-                      path: "/etc/ssl/certs/ca-bundle.crt"
-        - cluster_name: !Ref Cluster
+  #         ---
+  #         apiVersion: rbac.authorization.k8s.io/v1
+  #         kind: RoleBinding
+  #         metadata:
+  #           name: cluster-autoscaler
+  #           namespace: kube-system
+  #           labels:
+  #             k8s-addon: cluster-autoscaler.addons.k8s.io
+  #             k8s-app: cluster-autoscaler
+  #         roleRef:
+  #           apiGroup: rbac.authorization.k8s.io
+  #           kind: Role
+  #           name: cluster-autoscaler
+  #         subjects:
+  #           - kind: ServiceAccount
+  #             name: cluster-autoscaler
+  #             namespace: kube-system
 
-  ClusterAutoscalerDeploymentImageUpdate:
-    Type: AWSQS::Kubernetes::Resource
-    Condition: IsEnableClusterAutoscaler
-    DependsOn: ClusterAutoscalerDeploymentContainerUpdate
-    Properties:
-      ClusterName: !Ref Cluster
-      Namespace: kube-system
-      Manifest: !Sub
-        - |
-          apiVersion: apps/v1
-          kind: Deployment
-          metadata:
-            name: cluster-autoscaler
-            namespace: kube-system
-            labels:
-              app: cluster-autoscaler
-          spec:
-            replicas: 1
-            selector:
-              matchLabels:
-                app: cluster-autoscaler
-            template:
-              metadata:
-                labels:
-                  app: cluster-autoscaler
-                annotations:
-                  prometheus.io/scrape: 'true'
-                  prometheus.io/port: '8085'
-                  cluster-autoscaler.kubernetes.io/safe-to-evict: 'false'
-              spec:
-                priorityClassName: system-cluster-critical
-                securityContext:
-                  runAsNonRoot: true
-                  runAsUser: 65534
-                  fsGroup: 65534
-                serviceAccountName: cluster-autoscaler
-                containers:
-                  - image: k8s.gcr.io/autoscaling/cluster-autoscaler:v{image_tag}
-                    name: cluster-autoscaler
-                    resources:
-                      limits:
-                        cpu: 100m
-                        memory: 600Mi
-                      requests:
-                        cpu: 100m
-                        memory: 600Mi
-                    command:
-                      - ./cluster-autoscaler
-                      - --v=4
-                      - --stderrthreshold=info
-                      - --cloud-provider=aws
-                      - --skip-nodes-with-local-storage=false
-                      - --expander=least-waste
-                      - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/${cluster_name}
-                      - --balance-similar-node-groups
-                      - --skip-nodes-with-system-pods=false
-                    volumeMounts:
-                      - name: ssl-certs
-                        mountPath: /etc/ssl/certs/ca-certificates.crt #/etc/ssl/certs/ca-bundle.crt for Amazon Linux Worker Nodes
-                        readOnly: true
-                    imagePullPolicy: "Always"
-                volumes:
-                  - name: ssl-certs
-                    hostPath:
-                      path: "/etc/ssl/certs/ca-bundle.crt"
-        - image_tag: !FindInMap [ClusterAutoscalerImageVersionMap, !Ref ClusterVersion, latest]
-          cluster_name: !Ref Cluster
+  #         ---
+  #         apiVersion: apps/v1
+  #         kind: Deployment
+  #         metadata:
+  #           name: cluster-autoscaler
+  #           namespace: kube-system
+  #           labels:
+  #             app: cluster-autoscaler
+  #         spec:
+  #           replicas: 1
+  #           selector:
+  #             matchLabels:
+  #               app: cluster-autoscaler
+  #           template:
+  #             metadata:
+  #               labels:
+  #                 app: cluster-autoscaler
+  #               annotations:
+  #                 prometheus.io/scrape: 'true'
+  #                 prometheus.io/port: '8085'
+  #             spec:
+  #               priorityClassName: system-cluster-critical
+  #               securityContext:
+  #                 runAsNonRoot: true
+  #                 runAsUser: 65534
+  #                 fsGroup: 65534
+  #               serviceAccountName: cluster-autoscaler
+  #               containers:
+  #                 - image: k8s.gcr.io/autoscaling/cluster-autoscaler:v1.23.0
+  #                   name: cluster-autoscaler
+  #                   resources:
+  #                     limits:
+  #                       cpu: 100m
+  #                       memory: 600Mi
+  #                     requests:
+  #                       cpu: 100m
+  #                       memory: 600Mi
+  #                   command:
+  #                     - ./cluster-autoscaler
+  #                     - --v=4
+  #                     - --stderrthreshold=info
+  #                     - --cloud-provider=aws
+  #                     - --skip-nodes-with-local-storage=false
+  #                     - --expander=least-waste
+  #                     - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/${cluster_name}
+  #                     - --balance-similar-node-groups
+  #                     - --skip-nodes-with-system-pods=false
+  #                   volumeMounts:
+  #                     - name: ssl-certs
+  #                       mountPath: /etc/ssl/certs/ca-certificates.crt #/etc/ssl/certs/ca-bundle.crt for Amazon Linux Worker Nodes
+  #                       readOnly: true
+  #                   imagePullPolicy: "Always"
+  #               volumes:
+  #                 - name: ssl-certs
+  #                   hostPath:
+  #                     path: "/etc/ssl/certs/ca-bundle.crt"
+  #       - cluster_name: !Ref Cluster
 
-  ClusterAutoscalerOverProvisioningPod:
-    Type: AWSQS::Kubernetes::Resource
-    Condition: IsEnableClusterAutoscaler
-    DependsOn: ClusterAutoscalerDeploymentImageUpdate
-    Properties:
-      ClusterName: !Ref Cluster
-      Namespace: kube-system
-      Manifest: |
-        ---
-        apiVersion: scheduling.k8s.io/v1beta1
-        kind: PriorityClass
-        metadata:
-          name: overprovisioning
-        value: -1
-        globalDefault: false
-        ---
-        apiVersion: apps/v1
-        kind: Deployment
-        metadata:
-          name: overprovisioning
-          namespace: kube-system
-        spec:
-          replicas: 3
-          selector:
-            matchLabels:
-              run: overprovisioning
-          template:
-            metadata:
-              labels:
-                run: overprovisioning
-            spec:
-              priorityClassName: overprovisioning
-              containers:
-              - name: reserve-resources
-                image: k8s.gcr.io/pause
-                resources:
-                  requests:
-                    cpu: 820m
-                    memory: 2000Mi
+  # ClusterAutoscalerServiceAccountAnnotationUpdate:
+  #   Type: AWSQS::Kubernetes::Resource
+  #   Condition: IsEnableClusterAutoscaler
+  #   DependsOn: ClusterAutoscalerResources
+  #   Properties:
+  #     ClusterName: !Ref Cluster
+  #     Namespace: kube-system
+  #     Manifest: !Sub
+  #       - |
+  #         apiVersion: v1
+  #         kind: ServiceAccount
+  #         metadata:
+  #           labels:
+  #             k8s-addon: cluster-autoscaler.addons.k8s.io
+  #             k8s-app: cluster-autoscaler
+  #           annotations:
+  #             eks.amazonaws.com/role-arn: ${cluster_autoscaler_role}
+  #           name: cluster-autoscaler
+  #           namespace: kube-system
+  #       - cluster_autoscaler_role: !GetAtt ClusterAutoscalerRole.Arn
+
+  # ClusterAutoscalerDeploymentAnnotationUpdate:
+  #   Type: AWSQS::Kubernetes::Resource
+  #   Condition: IsEnableClusterAutoscaler
+  #   DependsOn: ClusterAutoscalerServiceAccountAnnotationUpdate
+  #   Properties:
+  #     ClusterName: !Ref Cluster
+  #     Namespace: kube-system
+  #     Manifest: !Sub
+  #       - |
+  #         apiVersion: apps/v1
+  #         kind: Deployment
+  #         metadata:
+  #           name: cluster-autoscaler
+  #           namespace: kube-system
+  #           labels:
+  #             app: cluster-autoscaler
+  #         spec:
+  #           replicas: 1
+  #           selector:
+  #             matchLabels:
+  #               app: cluster-autoscaler
+  #           template:
+  #             metadata:
+  #               labels:
+  #                 app: cluster-autoscaler
+  #               annotations:
+  #                 prometheus.io/scrape: 'true'
+  #                 prometheus.io/port: '8085'
+  #                 cluster-autoscaler.kubernetes.io/safe-to-evict: 'false'
+  #             spec:
+  #               priorityClassName: system-cluster-critical
+  #               securityContext:
+  #                 runAsNonRoot: true
+  #                 runAsUser: 65534
+  #                 fsGroup: 65534
+  #               serviceAccountName: cluster-autoscaler
+  #               containers:
+  #                 - image: k8s.gcr.io/autoscaling/cluster-autoscaler:v1.23.0
+  #                   name: cluster-autoscaler
+  #                   resources:
+  #                     limits:
+  #                       cpu: 100m
+  #                       memory: 600Mi
+  #                     requests:
+  #                       cpu: 100m
+  #                       memory: 600Mi
+  #                   command:
+  #                     - ./cluster-autoscaler
+  #                     - --v=4
+  #                     - --stderrthreshold=info
+  #                     - --cloud-provider=aws
+  #                     - --skip-nodes-with-local-storage=false
+  #                     - --expander=least-waste
+  #                     - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/${cluster_name}
+  #                   volumeMounts:
+  #                     - name: ssl-certs
+  #                       mountPath: /etc/ssl/certs/ca-certificates.crt #/etc/ssl/certs/ca-bundle.crt for Amazon Linux Worker Nodes
+  #                       readOnly: true
+  #                   imagePullPolicy: "Always"
+  #               volumes:
+  #                 - name: ssl-certs
+  #                   hostPath:
+  #                     path: "/etc/ssl/certs/ca-bundle.crt"
+  #       - cluster_name: !Ref Cluster
+
+  # ClusterAutoscalerDeploymentContainerUpdate:
+  #   Type: AWSQS::Kubernetes::Resource
+  #   Condition: IsEnableClusterAutoscaler
+  #   DependsOn: ClusterAutoscalerDeploymentAnnotationUpdate
+  #   Properties:
+  #     ClusterName: !Ref Cluster
+  #     Namespace: kube-system
+  #     Manifest: !Sub
+  #       - |
+  #         apiVersion: apps/v1
+  #         kind: Deployment
+  #         metadata:
+  #           name: cluster-autoscaler
+  #           namespace: kube-system
+  #           labels:
+  #             app: cluster-autoscaler
+  #         spec:
+  #           replicas: 1
+  #           selector:
+  #             matchLabels:
+  #               app: cluster-autoscaler
+  #           template:
+  #             metadata:
+  #               labels:
+  #                 app: cluster-autoscaler
+  #               annotations:
+  #                 prometheus.io/scrape: 'true'
+  #                 prometheus.io/port: '8085'
+  #                 cluster-autoscaler.kubernetes.io/safe-to-evict: 'false'
+  #             spec:
+  #               priorityClassName: system-cluster-critical
+  #               securityContext:
+  #                 runAsNonRoot: true
+  #                 runAsUser: 65534
+  #                 fsGroup: 65534
+  #               serviceAccountName: cluster-autoscaler
+  #               containers:
+  #                 - image: k8s.gcr.io/autoscaling/cluster-autoscaler:v1.23.0
+  #                   name: cluster-autoscaler
+  #                   resources:
+  #                     limits:
+  #                       cpu: 100m
+  #                       memory: 600Mi
+  #                     requests:
+  #                       cpu: 100m
+  #                       memory: 600Mi
+  #                   command:
+  #                     - ./cluster-autoscaler
+  #                     - --v=4
+  #                     - --stderrthreshold=info
+  #                     - --cloud-provider=aws
+  #                     - --skip-nodes-with-local-storage=false
+  #                     - --expander=least-waste
+  #                     - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/${cluster_name}
+  #                     - --balance-similar-node-groups
+  #                     - --skip-nodes-with-system-pods=false
+  #                   volumeMounts:
+  #                     - name: ssl-certs
+  #                       mountPath: /etc/ssl/certs/ca-certificates.crt #/etc/ssl/certs/ca-bundle.crt for Amazon Linux Worker Nodes
+  #                       readOnly: true
+  #                   imagePullPolicy: "Always"
+  #               volumes:
+  #                 - name: ssl-certs
+  #                   hostPath:
+  #                     path: "/etc/ssl/certs/ca-bundle.crt"
+  #       - cluster_name: !Ref Cluster
+
+  # ClusterAutoscalerDeploymentImageUpdate:
+  #   Type: AWSQS::Kubernetes::Resource
+  #   Condition: IsEnableClusterAutoscaler
+  #   DependsOn: ClusterAutoscalerDeploymentContainerUpdate
+  #   Properties:
+  #     ClusterName: !Ref Cluster
+  #     Namespace: kube-system
+  #     Manifest: !Sub
+  #       - |
+  #         apiVersion: apps/v1
+  #         kind: Deployment
+  #         metadata:
+  #           name: cluster-autoscaler
+  #           namespace: kube-system
+  #           labels:
+  #             app: cluster-autoscaler
+  #         spec:
+  #           replicas: 1
+  #           selector:
+  #             matchLabels:
+  #               app: cluster-autoscaler
+  #           template:
+  #             metadata:
+  #               labels:
+  #                 app: cluster-autoscaler
+  #               annotations:
+  #                 prometheus.io/scrape: 'true'
+  #                 prometheus.io/port: '8085'
+  #                 cluster-autoscaler.kubernetes.io/safe-to-evict: 'false'
+  #             spec:
+  #               priorityClassName: system-cluster-critical
+  #               securityContext:
+  #                 runAsNonRoot: true
+  #                 runAsUser: 65534
+  #                 fsGroup: 65534
+  #               serviceAccountName: cluster-autoscaler
+  #               containers:
+  #                 - image: k8s.gcr.io/autoscaling/cluster-autoscaler:v{image_tag}
+  #                   name: cluster-autoscaler
+  #                   resources:
+  #                     limits:
+  #                       cpu: 100m
+  #                       memory: 600Mi
+  #                     requests:
+  #                       cpu: 100m
+  #                       memory: 600Mi
+  #                   command:
+  #                     - ./cluster-autoscaler
+  #                     - --v=4
+  #                     - --stderrthreshold=info
+  #                     - --cloud-provider=aws
+  #                     - --skip-nodes-with-local-storage=false
+  #                     - --expander=least-waste
+  #                     - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/${cluster_name}
+  #                     - --balance-similar-node-groups
+  #                     - --skip-nodes-with-system-pods=false
+  #                   volumeMounts:
+  #                     - name: ssl-certs
+  #                       mountPath: /etc/ssl/certs/ca-certificates.crt #/etc/ssl/certs/ca-bundle.crt for Amazon Linux Worker Nodes
+  #                       readOnly: true
+  #                   imagePullPolicy: "Always"
+  #               volumes:
+  #                 - name: ssl-certs
+  #                   hostPath:
+  #                     path: "/etc/ssl/certs/ca-bundle.crt"
+  #       - image_tag: !FindInMap [ClusterAutoscalerImageVersionMap, !Ref ClusterVersion, latest]
+  #         cluster_name: !Ref Cluster
+
+  # # ClusterAutoscalerOverProvisioningPod:
+  #   Type: AWSQS::Kubernetes::Resource
+  #   Condition: IsEnableClusterAutoscaler
+  #   DependsOn: ClusterAutoscalerDeploymentImageUpdate
+  #   Properties:
+  #     ClusterName: !Ref Cluster
+  #     Namespace: kube-system
+  #     Manifest: |
+  #       ---
+  #       apiVersion: scheduling.k8s.io/v1beta1
+  #       kind: PriorityClass
+  #       metadata:
+  #         name: overprovisioning
+  #       value: -1
+  #       globalDefault: false
+  #       ---
+  #       apiVersion: apps/v1
+  #       kind: Deployment
+  #       metadata:
+  #         name: overprovisioning
+  #         namespace: kube-system
+  #       spec:
+  #         replicas: 3
+  #         selector:
+  #           matchLabels:
+  #             run: overprovisioning
+  #         template:
+  #           metadata:
+  #             labels:
+  #               run: overprovisioning
+  #           spec:
+  #             priorityClassName: overprovisioning
+  #             containers:
+  #             - name: reserve-resources
+  #               image: k8s.gcr.io/pause
+  #               resources:
+  #                 requests:
+  #                   cpu: 820m
+  #                   memory: 2000Mi
 
 Outputs:
   ClusterRoleArn:

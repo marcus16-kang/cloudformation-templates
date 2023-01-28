@@ -23,6 +23,10 @@ Parameters:
   ServiceAccountRoleConfigArn:
     Type: String
     Description: "[REQUIRED] The ARN of ServiceAccountRoleConfigFunction."
+  
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
 
 Conditions:
   UseLoadBalancerControllerRoleName:
@@ -226,7 +230,7 @@ Resources:
     Type: AWSQS::Kubernetes::Resource
     DependsOn: LoadBalancerControllerRoleConfig
     Properties:
-      ClusterName: !Ref Cluster
+      ClusterName: !Ref ClusterName
       Namespace: kube-system
       Manifest: !Sub
         - |

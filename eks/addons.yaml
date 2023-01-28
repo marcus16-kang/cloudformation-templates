@@ -23,6 +23,10 @@ Parameters:
   ServiceAccountRoleConfigArn:
     Type: String
     Description: "[REQUIRED] The ARN of ServiceAccountRoleConfigFunction."
+  
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
 
 Conditions:
   UseVpcCniRoleName: !Not [!Equals [!Ref VpcCniRoleName, ""]]
@@ -74,7 +78,7 @@ Resources:
     Properties:
       ServiceToken: !Ref ServiceAccountRoleConfigArn
       RoleName: !Ref VpcCniRole
-      OidcIssuerUrl: ClusterOidcIssuerUrl
+      OidcIssuerUrl: !Ref ClusterOidcIssuerUrl
       OidcArn: !Ref ClusterOidcProvider
       Namespace: kube-system
       ServiceAccount: aws-node

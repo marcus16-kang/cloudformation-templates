@@ -1,0 +1,48 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: An EC2 node group for EKS cluster.
+
+Parameters:
+  AmiType:
+    Type: String
+    Description: "[REQUIRED] The ami type for node group's EC2 instances."
+    AllowedValues:
+      - AL2_ARM_64
+      - AL2_x86_64
+      - AL2_x86_64_GPU
+      - BOTTLEROCKET_ARM_64
+      - BOTTLEROCKET_ARM_64_NVIDIA
+      - BOTTLEROCKET_x86_64
+      - BOTTLEROCKET_x86_64_NVIDIA
+      - CUSTOM
+      - WINDOWS_CORE_2019_x86_64
+      - WINDOWS_CORE_2022_x86_64
+      - WINDOWS_FULL_2019_x86_64
+      - WINDOWS_FULL_2022_x86_64
+  
+  CapacityType:
+    Type: String
+    Description: "[optional] The capacity type of node group."
+    AllowedValues:
+      - ON_DEMAND
+      - SPOT
+    Default: ON_DEMAND
+  
+  ClusterName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS cluster."
+  
+  DiskSize:
+    Type: Number
+    Description: "[optional] The size of node gruop's disk."
+    Default: '20'
+  
+  InstanceTypes:
+    Type: List<String>
+    Description: "[REQUIRED] The types for node group's EC2 instances."
+    Default: 't3.medium'
+  
+  
+
+Resources:
+  

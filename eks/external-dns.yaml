@@ -23,6 +23,10 @@ Parameters:
   ServiceAccountRoleConfigArn:
     Type: String
     Description: "[REQUIRED] The ARN of ServiceAccountRoleConfigFunction."
+  
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
 
 Conditions:
   UseExternalDnsRoleName: !Not [!Equals [!Ref ExternalDnsRoleName, ""]]
@@ -71,7 +75,7 @@ Resources:
     Type: Custom::ServiceAccountRoleConfig
     DependsOn: ExternalDnsRole
     Properties:
-      ServiceToken: !GetAtt ServiceAccountRoleConfigFunction.Arn
+      ServiceToken: !Ref ServiceAccountRoleConfigArn
       RoleName: !Ref ExternalDnsRole
       OidcIssuerUrl: !Ref ClusterOidcIssuerUrl
       OidcArn: !Ref ClusterOidcProvider
