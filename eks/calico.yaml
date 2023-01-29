@@ -1,0 +1,19 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: Calico for EKS cluster.
+
+Parameters:
+  ClusterName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS cluster."
+
+Resources:
+  CalicoHelmChart:
+    Type: AWSQS::Kubernetes::Helm
+    Properties:
+      ClusterID: !Ref ClusterName
+      Name: calico
+      # Namespace: prometheus
+      Repository: https://docs.projectcalico.org/charts
+      Chart: projectcalico/tigera-operator
+      Version: v3.21.4

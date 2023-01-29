@@ -136,6 +136,12 @@ Parameters:
     Type: String
     Description: "[optional] The name of vpc-cni's IAM Role."
     Default: ""
+  
+  # aws-ebs-csi-driver
+  EbsCsiDriverRoleName:
+    Type: String
+    Description: "[optional] The name of aws-ebs-csi-driver's IAM Role."
+    Default: ""
 
   ### Kubernetes resources
   # AWS Load Balance Controller
@@ -206,6 +212,29 @@ Parameters:
     Description: "[optional] The name of Prometheus's Log Group."
     Default: ""
 
+  # Calico
+  EnableCalico:
+    Type: String
+    Description: "[optional] Enable or disable EKS cluster's Calico network policy."
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "false"
+
+  # EFS CSI Driver
+  EnableEfsCsiDriver:
+    Type: String
+    Description: "[optional] Enable or disable EKS cluster's AWS EFS CSI Driver."
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "false"
+  EfsCsiDriverRoleName:
+    Type: String
+    Description: "[optional] The name of EFS CSI Driver's IAM Role."
+    Default: ""
+
+
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -236,6 +265,7 @@ Metadata:
           default: Cluster Configuration - Addons
         Parameters:
           - VpcCniRoleName
+          - EbsCsiDriverRoleName
 
       - Label:
           default: Node Configuration - Nodegroup (YOU CAN ADD MORE OPTIONS IN YAML FILE)
@@ -290,6 +320,17 @@ Metadata:
           - PrometheusAlertManagerDefinition
           - PrometheusLogGroupName
 
+      - Label:
+          default: Kubernetes Configuration - Calico
+        Parameters:
+          - EnableCalico
+      
+      - Label:
+          default: Kubernetes Configuration - AWS EFS CSI Driver
+        Parameters:
+          - EnableEfsCsiDriver
+          - EfsCsiDriverRoleName
+
 Conditions:
   UseIpv6: !Equals [!Ref IpFamily, "ipv6"]
   UseKms: !Not [!Equals [!Ref SecretKmsKeyArn, ""]]
@@ -310,6 +351,10 @@ Conditions:
   IsEnableClusterAutoscaler: !Equals [!Ref EnableClusterAutoscaler, "true"]
 
   IsEnablePrometheus: !Equals [!Ref EnablePrometheus, "true"]
+
+  IsEnableCalico: !Equals [!Ref EnableCalico, "true"]
+
+  IsEnableEfsCsiDriver: !Equals [!Ref EnableEfsCsiDriver, "true"]
 
 Resources:
   ### Get templates from Github to S3
@@ -443,7 +488,9 @@ Resources:
                       urls = [
                           'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/addons.yaml',
                           'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/amazon-managed-prometheus.yaml',
+                          'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/aws-efs-csi-driver.yaml',
                           'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/aws-load-balancer-controller.yaml',
+                          'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/calico.yaml',
                           'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/cluster-autoscaler.yaml',
                           'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/external-dns.yaml',
                           'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/horizontal-pod-autoscaler.yaml',
@@ -601,6 +648,7 @@ Resources:
         ClusterOidcProvider: !Ref OidcProvider
         ClusterOidcIssuerUrl: !GetAtt Cluster.OIDCIssuerURL
         VpcCniRoleName: !Ref VpcCniRoleName
+        EbsCsiDriverRoleName: !Ref EbsCsiDriverRoleName
         ServiceAccountRoleConfigArn: !GetAtt ServiceAccountConfig.Outputs.ServiceAccountRoleConfigArn
         ProjectName: !Ref ProjectName
       Tags:
@@ -829,6 +877,39 @@ Resources:
         PrometheusWorkspaceName: !Ref PrometheusWorkspaceName
         PrometheusAlertManagerDefinition: !Ref PrometheusAlertManagerDefinition
         PrometheusLogGroupName: !Ref PrometheusLogGroupName
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+
+  ### Calico
+  Calico:
+    Type: AWS::CloudFormation::Stack
+    Condition: IsEnableCalico
+    Properties:
+      TemplateURL: !Sub
+        - "https://${domain_name}/eks/calico.yaml"
+        - domain_name: !GetAtt TemplatesS3Bucket.DomainName
+      Parameters:
+        ClusterName: !Ref Cluster
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+
+  ### EFS CSI Driver
+  EfsCsiDriver:
+    Type: AWS::CloudFormation::Stack
+    Condition: IsEnableEfsCsiDriver
+    Properties:
+      TemplateURL: !Sub
+        - "https://${domain_name}/eks/aws-efs-csi-driver.yaml"
+        - domain_name: !GetAtt TemplatesS3Bucket.DomainName
+      Parameters:
+        ClusterName: !Ref Cluster
+        ClusterOidcProvider: !Ref OidcProvider
+        ClusterOidcIssuerUrl: !GetAtt Cluster.OIDCIssuerURL
+        EfsCsiDriverRoleName: !Ref EfsCsiDriverRoleName
+        ServiceAccountRoleConfigArn: !GetAtt ServiceAccountConfig.Outputs.ServiceAccountRoleConfigArn
+        ProjectName: !Ref ProjectName
       Tags:
         - Key: project
           Value: !Ref ProjectName
