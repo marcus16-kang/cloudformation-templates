@@ -152,6 +152,7 @@ Resources:
 
   EfsCsiDriverHelmChart:
     Type: AWSQS::Kubernetes::Helm
+    DependsOn: EfsCsiDriverrRoleConfig
     Properties:
       ClusterID: !Ref ClusterName
       Name: aws-efs-csi-driver
@@ -164,6 +165,7 @@ Resources:
             repository: ${repository}/eks/aws-efs-csi-driver
           controller:
             serviceAccount:
-              create: false
-              name: efs-csi-controller-sa
+              annotations:
+                eks.amazonaws.com/role-arn: ${efs_csi_driver_role}
         - repository: !FindInMap [EfsCsiDriverRepositoryMap, !Ref AWS::Region, repository]
+          efs_csi_driver_role: !GetAtt EfsCsiDriverrRole.Arn

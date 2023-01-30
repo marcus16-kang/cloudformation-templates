@@ -234,6 +234,38 @@ Parameters:
     Description: "[optional] The name of EFS CSI Driver's IAM Role."
     Default: ""
 
+  # AWS Distro fopr OpenTelemetry
+  EnableAdotOnNodegroup:
+    Type: String
+    Description: "[optional] Enable or disable EKS cluster's ADOT for EC2 nodegroup."
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "false"
+  AdotOnNodegroupRoleName:
+    Type: String
+    Description: "[optional] The name of ADOT for EC2 nodegroup's IAM Role."
+    Default: ""
+  EnableAdotOnFargate:
+    Type: String
+    Description: "[optional] Enable or disable EKS cluster's ADOT for Fargate."
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "false"
+  AdotOnFargateRoleName:
+    Type: String
+    Description: "[optional] The name of ADOT for Fargate's IAM Role."
+    Default: ""
+
+  # ASCP
+  EnableASCP:
+    Type: String
+    Description: "[optional] Enable or disable EKS cluster's Secrets Store CSI Driver."
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "false"
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -330,6 +362,19 @@ Metadata:
         Parameters:
           - EnableEfsCsiDriver
           - EfsCsiDriverRoleName
+      
+      - Label:
+          default: Kubernetes Configuration - AWS Distro for OpenTelemetry
+        Parameters:
+          - EnableAdotOnNodegroup
+          - AdotOnNodegroupRoleName
+          - EnableAdotOnFargate
+          - AdotOnFargateRoleName
+
+      - Label:
+          default: Kubernetes Configuration - AWS Secrets Manager and Config Provider for Secret Store CSI Driver
+        Parameters:
+          - EnableASCP
 
 Conditions:
   UseIpv6: !Equals [!Ref IpFamily, "ipv6"]
@@ -355,6 +400,10 @@ Conditions:
   IsEnableCalico: !Equals [!Ref EnableCalico, "true"]
 
   IsEnableEfsCsiDriver: !Equals [!Ref EnableEfsCsiDriver, "true"]
+
+  IsEnableAdot: !Or [!Equals [!Ref EnableAdotOnNodegroup, "true"], !Equals [!Ref EnableAdotOnFargate, "true"]]
+
+  IsEnableASCP: !Equals [!Ref EnableASCP, "true"]
 
 Resources:
   ### Get templates from Github to S3
@@ -488,6 +537,8 @@ Resources:
                       urls = [
                           'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/addons.yaml',
                           'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/amazon-managed-prometheus.yaml',
+                          'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/ascp.yaml',
+                          'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/aws-container-insights-otel.yaml',
                           'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/aws-efs-csi-driver.yaml',
                           'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/aws-load-balancer-controller.yaml',
                           'https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/calico.yaml',
@@ -910,6 +961,42 @@ Resources:
         EfsCsiDriverRoleName: !Ref EfsCsiDriverRoleName
         ServiceAccountRoleConfigArn: !GetAtt ServiceAccountConfig.Outputs.ServiceAccountRoleConfigArn
         ProjectName: !Ref ProjectName
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+  
+  ### AWS Distro for OpenTelemetry
+  Adot:
+    Type: AWS::CloudFormation::Stack
+    Condition: IsEnableAdot
+    Properties:
+      TemplateURL: !Sub
+        - "https://${domain_name}/eks/aws-container-insights-otel.yaml"
+        - domain_name: !GetAtt TemplatesS3Bucket.DomainName
+      Parameters:
+        ClusterName: !Ref Cluster
+        ClusterOidcProvider: !Ref OidcProvider
+        ClusterOidcIssuerUrl: !GetAtt Cluster.OIDCIssuerURL
+        ServiceAccountRoleConfigArn: !GetAtt ServiceAccountConfig.Outputs.ServiceAccountRoleConfigArn
+        ProjectName: !Ref ProjectName
+        EnableAdotOnNodegroup: !Ref EnableAdotOnNodegroup
+        AdotOnNodegroupRoleName: !Ref AdotOnNodegroupRoleName
+        EnableAdotOnFargate: !Ref EnableAdotOnFargate
+        AdotOnFargateRoleName: !Ref AdotOnFargateRoleName
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+
+  ### ASCP
+  ASCP:
+    Type: AWS::CloudFormation::Stack
+    Condition: IsEnableASCP
+    Properties:
+      TemplateURL: !Sub
+        - "https://${domain_name}/eks/ascp.yaml"
+        - domain_name: !GetAtt TemplatesS3Bucket.DomainName
+      Parameters:
+        ClusterName: !Ref Cluster
       Tags:
         - Key: project
           Value: !Ref ProjectName

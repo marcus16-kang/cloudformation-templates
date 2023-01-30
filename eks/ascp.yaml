@@ -1,0 +1,30 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: Secrets Store CSI Driver and ASCP for EKS Cluster.
+
+Parameters:
+  ClusterName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS cluster."
+  
+Resources:
+  SecretsStoreCsiDriverHelmChart:
+    Type: AWSQS::Kubernetes::Helm
+    Properties:
+      ClusterID: !Ref ClusterName
+      Name: csi-secrets-store
+      Namespace: kube-system
+      Repository: https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
+      Chart: secrets-store-csi-driver/secrets-store-csi-driver
+
+  SecretsProviderAwsHelmChart:
+    Type: AWSQS::Kubernetes::Helm
+    Properties:
+      ClusterID: !Ref ClusterName
+      Name: secrets-provider-aws
+      Namespace: kube-system
+      Repository: https://aws.github.io/secrets-store-csi-driver-provider-aws
+      Chart: aws-secrets-manager/secrets-store-csi-driver-provider-aws
+      Values:
+        enableSecretRotation: true
+        rotationPollInterval: 3600s
