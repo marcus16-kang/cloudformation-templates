@@ -1,0 +1,418 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ClusterName:
+    Type: String
+    Description: "[REQUIRED] The name of ECS cluster."
+  
+  TemplateBucketName:
+    Type: String
+    Description: "[REQUIRED] The name of templates S3 bucket."
+  
+  ContainerInsights:
+    Type: String
+    Description: "[optional] Enable of disable ECS cluster's container insights."
+    AllowedValues:
+      - "enabled"
+      - "disabled"
+    Default: "enabled"
+  
+  EnableClusterAlarms:
+    Type: String
+    Description: "[optional] Enable of disable to create ECS cluster's alarms."
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "true"
+
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
+
+  EnableEc2CapacityProvider:
+    Type: String
+    Description: "[REQUIRED] Enable or disable EC2 capacity provider for ECS cluster."
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "false"
+  
+  Ec2VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: "[REQUIRED] The VPC id of EC2 capacity provider for ECS cluster."
+
+  Ec2securityGroupName:
+    Type: String
+    Description: "[REQUIRED] The security group name of EC2 capacity provider for ECS cluster."
+
+  BastionSecurityGroupForEc2:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: "[optional] The security group id of bastion security group."
+    Default: ""
+
+  Ec2RoleName:
+    Type: String
+    Description: "[REQUIRED] The name of EC2 capacity provider for ECS cluster."
+  
+  EC2InstanceName:
+    Type: String
+    Description: "[REQUIRED] The instance name of EC2 capacity provider for ECS cluster."
+    Default: ""
+
+  Ec2LaunchTemplateName:
+    Type: String
+    Description: "[optional] The launch template name of EC2 capacity provider for ECS cluster."
+    Default: ""
+  
+  LatestECSOptimizedAMI:
+    Description: AMI ID
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id"
+
+  Ec2InstanceType:
+    Type: String
+    Description: "[REQUIRED] The instance type of EC2 capacity provider for ECS cluster."
+  
+  Ec2KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: "[optional] The key pair name of EC2 capacity provider for ECS cluster."
+    Default: ""
+  
+  Ec2SshPort:
+    Type: Number
+    Description: "[optional] The SSH port number of EC2 capacity provider for ECS cluster."
+    Default: "22"
+  
+  Ec2AutoScalingGroupName:
+    Type: String
+    Description: "[optional] The auto scaling group name of EC2 capacity provider for ECS cluster."
+    Default: ""
+
+  Ec2AutoScalingDesiredSize:
+    Type: Number
+    Description: "[REQUIRED] The desired size of EC2 AutoScaling Group."
+    Default: "2"
+  
+  Ec2AutoScalingMinSize:
+    Type: Number
+    Description: "[REQUIRED] The min size of EC2 AutoScaling Group."
+    Default: "2"
+  
+  Ec2AutoScalingMaxSize:
+    Type: Number
+    Description: "[REQUIRED] The max size of EC2 AutoScaling Group."
+    Default: "10"
+
+  Ec2AutoScalingSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: "[REQUIRED] The subnet id list of EC2 AutoScaling Group."
+
+  EnableFargateCapacityProvider:
+    Type: String
+    Description: "[REQUIRED] Enable or disable Fargate capacity provider for ECS cluster."
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "false"
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+      
+      - Label:
+          default: ECS Cluster Configuration - General
+        Parameters:
+          - ClusterName
+          - ContainerInsights
+          - EnableClusterAlarms
+      
+      - Label:
+          default: ECS Capacity Provider Configuration - EC2
+        Parameters:
+          - EnableEc2CapacityProvider
+          - LatestECSOptimizedAMI
+          - Ec2VpcId
+          - Ec2securityGroupName
+          - BastionSecurityGroupForEc2
+          - Ec2RoleName
+          - EC2InstanceName
+          - Ec2LaunchTemplateName
+          - Ec2InstanceType
+          - Ec2KeyName
+          - Ec2SshPort
+          - Ec2AutoScalingGroupName
+          - Ec2AutoScalingDesiredSize
+          - Ec2AutoScalingMinSize
+          - Ec2AutoScalingMaxSize
+          - Ec2AutoScalingSubnetIds
+      
+      - Label:
+          default: ECS Capacity Provider Configuration - Fargate
+        Parameters:
+          - EnableFargateCapacityProvider
+
+Conditions:
+  IsEnableClusterAlarms: !Equals [!Ref EnableClusterAlarms, "true"]
+
+  IsEnableEc2CapacityProvider: !Equals [!Ref EnableEc2CapacityProvider, "true"]
+
+  UseBastionSecurityGroup: !And
+    - !Not [!Equals [!Ref BastionSecurityGroupForEc2, ""]]
+    - !Condition IsEnableEc2CapacityProvider
+  UseEc2LaunchTemplateName: !Not [!Equals [!Ref Ec2LaunchTemplateName, ""]]
+  UseEc2KeyPair: !Not [!Equals [!Ref Ec2KeyName, ""]]
+  UseEc2AutoScalingGroupName: !Not [!Equals [!Ref Ec2AutoScalingGroupName, ""]]
+
+  IsEnableFargateCapacityProvider: !Equals [!Ref EnableFargateCapacityProvider, ""]
+
+Resources:
+  ### ECS Cluster
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref ClusterName
+      ClusterSettings:
+        - Name: containerInsights
+          Value: !Ref ContainerInsights
+      Configuration:
+        ExecuteCommandConfiguration:
+          Logging: DEFAULT
+      ServiceConnectDefaults:
+        Namespace: !Ref ClusterName
+      Tags:
+        - Key: ecs:cluster:createdFrom
+          Value: ecs-console-v2
+        - Key: project
+          Value: !Ref ProjectName
+
+  ### ECS Capacity Provider - EC2
+  Ec2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: IsEnableEc2CapacityProvider
+    Properties:
+      GroupDescription: !Ref Ec2securityGroupName
+      GroupName: !Ref Ec2securityGroupName
+      Tags:
+        - Key: Name
+          Value: !Ref Ec2securityGroupName
+        - Key: project
+          Value: !Ref ProjectName
+      VpcId: !Ref Ec2VpcId
+
+  Ec2SecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: UseBastionSecurityGroup
+    Properties:
+      IpProtocol: tcp
+      GroupId: !GetAtt Ec2SecurityGroup.GroupId
+      FromPort: !Ref Ec2SshPort
+      ToPort: !Ref Ec2SshPort
+      SourceSecurityGroupId: !Ref BastionSecurityGroupForEc2
+
+  Ec2Role:
+    Type: AWS::IAM::Role
+    Condition: IsEnableEc2CapacityProvider
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: ec2.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
+      RoleName: !Ref Ec2RoleName
+      Tags:
+        - Key: Name
+          Value: !Ref Ec2RoleName
+        - Key: project
+          Value: !Ref ProjectName
+  
+  Ec2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Condition: IsEnableEc2CapacityProvider
+    Properties:
+      InstanceProfileName: !Ref Ec2RoleName
+      Roles:
+        - !Ref Ec2Role
+
+  Ec2LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Condition: IsEnableEc2CapacityProvider
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref LatestECSOptimizedAMI
+        InstanceType: !Ref Ec2InstanceType
+        SecurityGroupIds:
+          - !GetAtt Ec2SecurityGroup.GroupId
+        KeyName: !If
+          - UseEc2KeyPair
+          - !Ref Ec2KeyName
+          - !Ref AWS::NoValue
+        IamInstanceProfile:
+          Arn: !GetAtt Ec2InstanceProfile.Arn
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Ref EC2InstanceName
+              - Key: project
+                Value: !Ref ProjectName
+          - ResourceType: volume
+            Tags:
+              - Key: Name
+                Value: !Ref EC2InstanceName
+              - Key: project
+                Value: !Ref ProjectName
+          - ResourceType: network-interface
+            Tags:
+              - Key: Name
+                Value: !Ref EC2InstanceName
+              - Key: project
+                Value: !Ref ProjectName
+        UserData:
+          Fn::Base64: !Sub
+            - |
+              #!/bin/bash
+
+              echo "Port ${ssh_port}" >> /etc/ssh/sshd_config
+
+              systemctl restart sshd
+
+              echo ECS_CLUSTER=${cluster_name} >> /etc/ecs/ecs.config;
+            - ssh_port: !Ref Ec2SshPort
+              cluster_name: !Ref Cluster
+      LaunchTemplateName: !If
+        - UseEc2LaunchTemplateName
+        - !Ref Ec2LaunchTemplateName
+        - !Ref AWS::NoValue
+      TagSpecifications:
+        - ResourceType: launch-template
+          Tags:
+            - Key: project
+              Value: !Ref ProjectName
+
+  Ec2AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Condition: IsEnableEc2CapacityProvider
+    Properties:
+      AutoScalingGroupName: !If
+        - UseEc2AutoScalingGroupName
+        - !Ref Ec2AutoScalingGroupName
+        - !Ref AWS::NoValue
+      MaxSize: !Ref Ec2AutoScalingMaxSize
+      MinSize: !Ref Ec2AutoScalingMinSize
+      DesiredCapacity: !Ref Ec2AutoScalingDesiredSize
+      LaunchTemplate:
+        LaunchTemplateId: !Ref Ec2LaunchTemplate
+        Version: !GetAtt Ec2LaunchTemplate.LatestVersionNumber
+      VPCZoneIdentifier: !Ref Ec2AutoScalingSubnetIds
+  
+  Ec2CapacityProvider:
+    Type: AWS::ECS::CapacityProvider
+    Condition: IsEnableEc2CapacityProvider
+    Properties:
+      AutoScalingGroupProvider:
+        AutoScalingGroupArn: !Ref Ec2AutoScalingGroup
+        ManagedScaling:
+          Status: ENABLED
+          TargetCapacity: 100
+        ManagedTerminationProtection: DISABLED
+
+  ### ECS Capaicty Provider - Association
+  ClusterCapacityProviderAssociation:
+    Type: AWS::ECS::ClusterCapacityProviderAssociations
+    Properties:
+      CapacityProviders:
+        - !If
+          - IsEnableEc2CapacityProvider
+          - !Ref Ec2CapacityProvider
+          - !Ref AWS::NoValue
+        - !If
+          - IsEnableFargateCapacityProvider
+          - FARGATE
+          - !Ref AWS::NoValue
+        - !If
+          - IsEnableFargateCapacityProvider
+          - FARGATE_SPOT
+          - !Ref AWS::NoValue
+      Cluster: !Ref Cluster
+      DefaultCapacityProviderStrategy: []
+
+  ### ECS Alarms
+  Alarms:
+    Type: AWS::CloudFormation::Stack
+    Condition: IsEnableClusterAlarms
+    Properties:
+      TemplateURL: !Sub https://${TemplateBucketName}.s3.amazonaws.com/observability-templates/alarm/ecs/ecs-cluster-alarm.yaml # https://github.com/marcus16-kang/observability-templates/blob/main/alarm/ecs/ecs-cluster-alarm.yaml
+      Parameters:
+        ClusterName: !Ref Cluster
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+
+Outputs:
+  ClusterName:
+    Value: !Ref Cluster
+  
+  ClusterArn:
+    Value: !GetAtt Cluster.Arn
+
+  ClusterInfraDashboard:
+    Value: !Sub
+      - |
+        {
+            "type": "text",
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 1,
+            "properties": {
+                "markdown": "# ECS (${cluster_name})"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 0,
+            "y": 1,
+            "width": 6,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "AWS/ECS", "CPUUtilization", "ClusterName", "${cluster_name}", { "stat": "Average" } ],
+                    [ "..." ],
+                    [ "...", { "stat": "Maximum" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${region}",
+                "stat": "Minimum",
+                "period": 60
+            }
+        },
+        {
+            "type": "metric",
+            "x": 6,
+            "y": 1,
+            "width": 6,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "AWS/ECS", "MemoryUtilization", "ClusterName", "${cluster_name}", { "stat": "Average" } ],
+                    [ "..." ],
+                    [ "...", { "stat": "Maximum" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${region}",
+                "stat": "Minimum",
+                "period": 60
+            }
+        },
+      - cluster_name: !Ref ClusterName
+        region: !Ref AWS::Region
