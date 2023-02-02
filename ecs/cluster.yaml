@@ -40,6 +40,7 @@ Parameters:
   Ec2VpcId:
     Type: AWS::EC2::VPC::Id
     Description: "[REQUIRED] The VPC id of EC2 capacity provider for ECS cluster."
+    Default: ""
 
   Ec2securityGroupName:
     Type: String
@@ -106,6 +107,7 @@ Parameters:
   Ec2AutoScalingSubnetIds:
     Type: List<AWS::EC2::Subnet::Id>
     Description: "[REQUIRED] The subnet id list of EC2 AutoScaling Group."
+    Default: ""
 
   EnableFargateCapacityProvider:
     Type: String
@@ -122,6 +124,7 @@ Metadata:
           default: Stack Configuration
         Parameters:
           - ProjectName
+          - TemplateBucketName
       
       - Label:
           default: ECS Cluster Configuration - General

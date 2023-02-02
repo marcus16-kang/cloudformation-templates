@@ -1,24 +1,24 @@
 AWSTemplateFormatVersion: "2010-09-09"
 
 Parameters:
-  IpAddressType:
+  ### Stack Configuration
+  ProjectName:
     Type: String
-    Description: "[optional] The IP address type of alb."
-    AllowedValues:
-      - ipv4
-      - dualstack
-    Default: ipv4
+    Description: "[REQUIRED] The name of this stack's project."
+  
+  ### ALB Configuration - General
   LoadBalancerName:
     Type: String
     Description: "[REQUIRED] The name of alb."
-  AccessLogBucketName:
-    Type: String
-    Description: "[REQUIRED] The name of alb access log bucket."
-  AccessLogPrefix:
-    Type: String
-    Description: "[optional] The prefix of alb access log. It cannot start or end with `/` "
-    Default: ""
-    AllowedPattern: ^(?!\/).*(?<!\/)$
+  
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: "[REQUIRED] The id of alb security group's vpc."
+  
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: "[REQUIRED] The id list of alb's subnets."
+  
   Scheme:
     Type: String
     Description: "[REQUIRED] The type of alb."
@@ -26,38 +26,86 @@ Parameters:
       - internal
       - internet-facing
     Default: internet-facing
+  
+  IpAddressType:
+    Type: String
+    Description: "[optional] The IP address type of alb."
+    AllowedValues:
+      - ipv4
+      - dualstack
+    Default: ipv4
+  
   SecurityGroupName:
     Type: String
     Description: "[REQUIRED] The name of alb security group."
-  VpcId:
-    Type: AWS::EC2::VPC::Id
-    Description: "[REQUIRED] The id of alb security group's vpc."
-  Subnets:
-    Type: List<AWS::EC2::Subnet::Id>
-    Description: "[REQUIRED] The id list of alb's subnets."
+  
+  ListenerPathPattern:
+    Type: List<String>
+    Description: "[REQUIRED] The path pattern list of listener. Type with comma(,).  For example, `/v1/test1,/v1/admin*,/v2/test1`."
+  
+  ### ALB Configuration - Target Group
+  TargetGroupName:
+    Type: String
+    Description: "[REQUIRED] The name of target group."
+  
   TargetSecurityGroupId:
     Type: AWS::EC2::SecurityGroup::Id
     Description: "[optional] The id of alb target gruop's security group."
+  
   TargetPort:
     Type: Number
     Description: "[REQUIRED] The port number of target group."
     Default: "80"
-  ProjectName:
-    Type: String
-    Description: "[REQUIRED] The name of this stack's project."
+  
   HealthCheckPath:
     Type: String
     Description: "[REQUIRED] The health check path of target group. It should end with `/`."
     Default: /
-  TargetGroupName:
+  
+  ### ALB Configuration - Access Log
+  AccessLogBucketName:
     Type: String
-    Description: "[REQUIRED] The name of target group."
-  ListenerPathPattern:
-    Type: List<String>
-    Description: "[REQUIRED] The path pattern list of listener. Type with comma(,).  For example, `/v1/test1,/v1/admin*,/v2/test1`."
-  TemplateBucketName:
+    Description: "[REQUIRED] The name of alb access log bucket."
+  
+  AccessLogPrefix:
     Type: String
-    Description: "[REQUIRED] The name of template's S3 bucket."5
+    Description: "[optional] The prefix of alb access log. It cannot start or end with `/`."
+    Default: ""
+    AllowedPattern: ^(?!\/).*(?<!\/)$
+  
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+    
+      - Label:
+          default: ALB Configuration - General
+        Parameters:
+          - LoadBalancerName
+          - VpcId
+          - Subnets
+          - Scheme
+          - IpAddressType
+          - SecurityGroupName
+          - ListenerPathPattern
+      
+      - Label:
+          default: ALB Configuration - Target Group
+        Parameters:
+          - TargetGroupName
+          - TargetSecurityGroupId
+          - TargetPort
+          - HealthCheckPath
+      
+      - Label:
+          default: ALB Configuration - Access Log
+        Parameters:
+          - AccessLogBucketName
+          - AccessLogPrefix
 
 Mappings:
   AccessLogAccountId:
@@ -108,7 +156,10 @@ Mappings:
 
 Conditions:
   IsInternal: !Equals [!Ref Scheme, internal]
+
   UseTargetSecurityGroup: !Not [!Equals [!Ref TargetSecurityGroupId, ""]]
+  
+  UseAccessLogPrefix: !Not [!Equals [!Ref AccessLogPrefix, ""]]
 
 Resources:
   SecurityGroup:
@@ -127,6 +178,7 @@ Resources:
           Value: !Ref SecurityGroupName
         - Key: project
           Value: !Ref ProjectName
+  
   SecurityGroupEgress:
     Type: AWS::EC2::SecurityGroupEgress
     Condition: UseTargetSecurityGroup
@@ -136,6 +188,7 @@ Resources:
       IpProtocol: tcp
       FromPort: !Ref TargetPort
       ToPort: !Ref TargetPort
+  
   SecurityGroupIngress:
     Type: AWS::EC2::SecurityGroupIngress
     Condition: UseTargetSecurityGroup
@@ -146,13 +199,20 @@ Resources:
       IpProtocol: tcp
       SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
 
+
   AccessLogBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Ref AccessLogBucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
       Tags:
         - Key: project
           Value: !Ref ProjectName
+  
   AccessLogBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -166,17 +226,18 @@ Resources:
                 - arn:aws:iam::${account_id}:root
                 - account_id: !FindInMap [ AccessLogAccountId, !Ref "AWS::Region", accountid ]
             Action: s3:PutObject
-            Resource: !Join
-              - ''
-              - - 'arn:aws:s3:::'
-                - !Ref AccessLogBucket
-                - !Ref AccessLogPrefix
-                - '/AWSLogs/'
-                - !Ref AWS::AccountId
-                - '/*'
+            Resource: !Sub
+              - "arn:aws:s3:::${bucket_name}/${prefix}AWSLogs/${account_id}/*"
+              - bucket_name: !Ref AccessLogBucket
+                prefix: !If
+                  - UseAccessLogPrefix
+                  - !Sub "${AccessLogPrefix}/"
+                  - ""
+                account_id: !Ref AWS::AccountId
 
   LoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn: AccessLogBucketPolicy
     Properties:
       IpAddressType: !Ref IpAddressType
       LoadBalancerAttributes:
@@ -219,6 +280,7 @@ Resources:
         - Key: project
           Value: !Ref ProjectName
       Type: application
+  
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
@@ -273,6 +335,7 @@ Resources:
       TargetType: instance                          # `instance`(default), `ip`, `lambda` or `alb`
       UnhealthyThresholdCount: 2                    # `2`(default), `2` ~ `10`. If the target group protocol is TCP, TCP_UDP, UDP, TLS, HTTP or HTTPS, the default is `2`. For target groups with a protocol of GENEVE, the default is `3`. If the target type is lambda, the default is `5`.
       VpcId: !Ref VpcId
+  
   Listener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
@@ -283,6 +346,7 @@ Resources:
       LoadBalancerArn: !Ref LoadBalancer
       Port: 80
       Protocol: HTTP                                # `GENEVE`, `HTTP`, `HTTPS`, `TCP`, `TCP_UDP`, `TLS`, `UDP`
+  
   ListenerRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
@@ -296,18 +360,6 @@ Resources:
       ListenerArn: !Ref Listener
       Priority: 1
   
-  LoadBalancerAlarmStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub https://${TemplateBucketName}.s3.amazonaws.com/observability-templates/alarm/alb/alb-alarm.yaml # https://github.com/marcus16-kang/observability-templates/blob/main/alarm/alb/alb-alarm.yaml
-      Parameters:
-        ApplicationLoadBalancerArn: !GetAtt LoadBalancer.LoadBalancerFullName
-        TargetCountThreshold: '100'
-        TargetResponseThreshold: '2.0'
-      Tags:
-        - Key: project
-          Value: !Ref ProjectName
-
 Outputs:
   SecurityGroupId:
     Value: !GetAtt SecurityGroup.GroupId
@@ -317,3 +369,92 @@ Outputs:
     Value: !GetAtt LoadBalancer.DNSName
   LoadBalancerFullName:
     Value: !GetAtt LoadBalancer.LoadBalancerFullName
+  LoadBalancerName:
+    Value: !GetAtt LoadBalancer.LoadBalancerName
+  LoadBalancerDashboardMetrics:
+    Value: !Sub
+      - |
+        {
+            "height": 1,
+            "width": 24,
+            "y": 0,
+            "x": 0,
+            "type": "text",
+            "properties": {
+                "markdown": "# Application Load Balanace Metrics (`${load_balancer_name}`)"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 0,
+            "y": 1,
+            "width": 6,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "AWS/ApplicationELB", "RequestCount", "LoadBalancer", "${load_balancer_full_name}" ],
+                    [ "...", "TargetConnectionErrorCount", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${region}",
+                "period": 60,
+                "stat": "Sum"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 6,
+            "y": 1,
+            "width": 6,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "AWS/ApplicationELB", "ActiveConnectionCount", "LoadBalancer", "${load_balancer_full_name}" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${region}",
+                "stat": "Sum",
+                "period": 60
+            }
+        },
+        {
+            "type": "metric",
+            "x": 12,
+            "y": 1,
+            "width": 6,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "AWS/ApplicationELB", "TargetResponseTime", "LoadBalancer", "${load_balancer_full_name}" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${region}",
+                "stat": "Average",
+                "period": 60
+            }
+        },
+        {
+            "type": "metric",
+            "x": 18,
+            "y": 1,
+            "width": 6,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "AWS/ApplicationELB", "HTTPCode_Target_2XX_Count", "LoadBalancer", "${load_balancer_full_name}" ],
+                    [ ".", "HTTPCode_Target_4XX_Count", ".", "." ],
+                    [ ".", "HTTPCode_Target_5XX_Count", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${region}",
+                "stat": "Sum",
+                "period": 60
+            }
+        }
+      - load_balancer_name: !GetAtt LoadBalancer.LoadBalancerName
+        load_balancer_full_name: !GetAtt LoadBalancer.LoadBalancerFullName
+        region: !Ref AWS::Region

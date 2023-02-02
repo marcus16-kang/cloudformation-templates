@@ -1,0 +1,38 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  CodeCommitRepositoryName:
+    Type: String
+    Description: "[REQUIRED] The name of CodeCommit repository."
+  
+  CodeBuildProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of CodeBuild project."
+  
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
+
+Resources:
+  CodeCommitRepository:
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryName: !Ref CodeCommitRepositoryName
+        Tags:
+          - Key: Name
+            Value: !Ref CodeCommitRepositoryName
+          - Key: project
+            Value: !Ref ProjectName
+  
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        ComputeType: 
+        Image: 
+        Type: 
+      ServiceRole: 
+      Source:
+        Type: 

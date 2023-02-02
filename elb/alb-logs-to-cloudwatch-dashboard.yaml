@@ -1,0 +1,359 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
+  
+  RoleName:
+    Type: String
+    Description: "[optional] The name of function's IAM role."
+    Default: ""
+  
+  FunctionName:
+    Type: String
+    Description: "[REQUIRED] The name of function."
+  
+  AlbLogsBucketName:
+    Type: String
+    Description: "[REQUIRED] The name of ALB log's S3 bucket."
+  
+  AlbLogsBucketPrefix:
+    Type: String
+    Description: "[optional] The prefix of ALB log's S3 bucket."
+    Default: ""
+  
+  AthenaDatabaseName:
+    Type: String
+    Description: "[REQUIRED] The name of Athena Database."
+  
+  AthenaOutputBucketName:
+    Type: String
+    Description: "[REQUIRED] The name of Athena output S3 bucket."
+  
+  AthenaOutputBucketPrefix:
+    Type: String
+    Description: "[optional] The prefix of Athena output S3 bucket."
+    Default: ""
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+      
+      - Label:
+          default: Function Configuration - General
+        Parameters:
+          - FunctionName
+          - RoleName
+      
+      - Label:
+          default: Function Configuration - ALB Logs
+        Parameters:
+          - AlbLogsBucketName
+          - AlbLogsBucketPrefix
+      
+      - Label:
+          default: Function Configuration - Athen Output
+        Parameters:
+          - AthenaDatabaseName
+          - AthenaOutputBucketName
+          - AthenaOutputBucketPrefix
+
+Conditions:
+  UseRoleName: !Not [!Equals [!Ref RoleName, ""]]
+
+Resources:
+  AthenaOutputBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketName: !Ref AthenaOutputBucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+
+  TrafficLogFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+        - "arn:aws:iam::aws:policy/AmazonAthenaFullAccess"
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      RoleName: !If
+        - UseRoleName
+        - !Ref RoleName
+        - !Sub "${FunctionName}-role"
+      Tags:
+        - Key: Name
+          Value: !Ref RoleName
+        - Key: project
+          Value: !Ref ProjectName
+  
+  TrafficLogFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Architectures:
+        - "arm64"
+      Environment:
+        Variables:
+          ALB_LOGS_BUCKET_NAME: !Ref AlbLogsBucketName
+          ALB_LOGS_BUCKET_PREFIX: !Ref AlbLogsBucketPrefix
+          ATHENA_DATABASE_NAME: !Ref AthenaDatabaseName
+          ATHENA_OUTPUT_BUCKET_NAME: !Ref AthenaOutputBucket
+          ATHENA_OUTPUT_BUCKET_PREFIX: !Ref AthenaOutputBucketPrefix
+      FunctionName: !Ref FunctionName
+      Handler: index.lambda_handler
+      MemorySize: 512
+      PackageType: Zip
+      Role: !GetAtt TrafficLogFunctionRole.Arn
+      Runtime: python3.9
+      Tags:
+        - Key: Name
+          Value: !Ref FunctionName
+        - Key: project
+          Value: !Ref ProjectName
+      Timeout: 5
+      Code:
+        ZipFile: |
+          import os
+          import json
+          import boto3
+          import time
+          from datetime import datetime
+
+          athena_client = boto3.client('athena')
+          database_name = os.getenv('ATHENA_DATABASE_NAME', 'alb_logs_db')
+          bucket_name = os.getenv('ATHENA_OUTPUT_BUCKET_NAME', None)
+          bucket_prefix = os.getenv('ATHENA_OUTPUT_PREFIX_NAME', '')
+          alb_bucket_name = os.getenv('ALB_LOGS_BUCKET_NAME', None)
+          alb_bucket_prefix = os.getenv('ALB_LOGS_BUCKET_PREFIX', '')
+          region = os.getenv('AWS_DEFAULT_REGION')
+
+          def create_database():
+              query = f"""
+                  CREATE DATABASE IF NOT EXISTS {database_name}
+              """
+              
+              response = athena_client.start_query_execution(
+                  QueryString=query,
+                  ResultConfiguration={'OutputLocation': f's3://{bucket_name}/{bucket_prefix}'}
+              )
+              query_execution_id = response['QueryExecutionId']
+              
+              while True:
+                  get_query_execution = athena_client.get_query_execution(QueryExecutionId=query_execution_id)
+                  state = get_query_execution['QueryExecution']['Status']['State']
+                  
+                  if state == 'QUEUED' or state == 'RUNNING':
+                      time.sleep(0.1)
+                  
+                  elif state == 'SUCCEEDED':  # database already exists
+                      return
+                  
+                  elif state == 'FAILED' or state == 'CANCELLED':
+                      print(get_query_execution)
+                      
+                      raise Exception
+
+          def create_table(account_id):
+              query = f"""
+                  CREATE EXTERNAL TABLE IF NOT EXISTS alb_logs (
+                      type string,
+                      time string,
+                      elb string,
+                      client_ip string,
+                      client_port int,
+                      target_ip string,
+                      target_port int,
+                      request_processing_time double,
+                      target_processing_time double,
+                      response_processing_time double,
+                      elb_status_code int,
+                      target_status_code string,
+                      received_bytes bigint,
+                      sent_bytes bigint,
+                      request_verb string,
+                      request_url string,
+                      request_proto string,
+                      user_agent string,
+                      ssl_cipher string,
+                      ssl_protocol string,
+                      target_group_arn string,
+                      trace_id string,
+                      domain_name string,
+                      chosen_cert_arn string,
+                      matched_rule_priority string,
+                      request_creation_time string,
+                      actions_executed string,
+                      redirect_url string,
+                      lambda_error_reason string,
+                      target_port_list string,
+                      target_status_code_list string,
+                      classification string,
+                      classification_reason string
+                      )
+                      ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.RegexSerDe'
+                      WITH SERDEPROPERTIES (
+                      'serialization.format' = '1',
+                      'input.regex' = 
+                  '([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*):([0-9]*) ([^ ]*)[:-]([0-9]*) ([-.0-9]*) ([-.0-9]*) ([-.0-9]*) (|[-0-9]*) (-|[-0-9]*) ([-0-9]*) ([-0-9]*) \"([^ ]*) (.*) (- |[^ ]*)\" \"([^\"]*)\" ([A-Z0-9-_]+) ([A-Za-z0-9.-]*) ([^ ]*) \"([^\"]*)\" \"([^\"]*)\" \"([^\"]*)\" ([-.0-9]*) ([^ ]*) \"([^\"]*)\" \"([^\"]*)\" \"([^ ]*)\" \"([^\s]+?)\" \"([^\s]+)\" \"([^ ]*)\" \"([^ ]*)\"')
+                      LOCATION 's3://{alb_bucket_name}/{alb_bucket_prefix}AWSLogs/{account_id}/elasticloadbalancing/{region}/'
+              """
+              
+              response = athena_client.start_query_execution(
+                  QueryString=query,
+                  QueryExecutionContext={
+                      'Database': database_name,
+                      'Catalog': 'AwsDataCatalog'
+                  },
+                  ResultConfiguration={'OutputLocation': f's3://{bucket_name}/{bucket_prefix}'}
+              )
+              query_execution_id = response['QueryExecutionId']
+              
+              while True:
+                  get_query_execution = athena_client.get_query_execution(QueryExecutionId=query_execution_id)
+                  state = get_query_execution['QueryExecution']['Status']['State']
+                  
+                  if state == 'QUEUED' or state == 'RUNNING':
+                      time.sleep(0.1)
+                  
+                  elif state == 'SUCCEEDED':  # database already exists
+                      return
+                  
+                  elif state == 'FAILED' or state == 'CANCELLED':
+                      print(get_query_execution)
+                      
+                      raise Exception
+              
+          def get_alb_requests():
+              query = f"""
+                  SELECT
+                      PATH,
+                      METHOD,
+                      COUNT(METHOD) AS PATH_COUNT
+                  FROM (
+                      SELECT
+                          url_extract_path(request_url) AS PATH,
+                          request_verb AS METHOD,
+                          from_iso8601_timestamp(time) as TIME
+                      FROM alb_logs_db.alb_logs
+                  )
+                  WHERE
+                      TIME > date_trunc('minute', NOW() - INTERVAL '5' MINUTE)
+                  GROUP BY
+                      PATH, METHOD
+                  ORDER BY
+                      PATH_COUNT DESC
+                  LIMIT 5;
+              """
+              
+              response = athena_client.start_query_execution(
+                  QueryString=query,
+                  QueryExecutionContext={
+                      'Database': database_name,
+                      'Catalog': 'AwsDataCatalog'
+                  },
+                  ResultConfiguration={'OutputLocation': f's3://{bucket_name}/{bucket_prefix}'}
+              )
+              query_execution_id = response['QueryExecutionId']
+              
+              while True:
+                  get_query_execution = athena_client.get_query_execution(QueryExecutionId=query_execution_id)
+                  state = get_query_execution['QueryExecution']['Status']['State']
+                  
+                  if state == 'QUEUED' or state == 'RUNNING':
+                      time.sleep(0.1)
+                  
+                  elif state == 'SUCCEEDED':  # database already exists
+                      response = athena_client.get_query_results(
+                          QueryExecutionId=query_execution_id
+                      )
+                      return response['ResultSet']['Rows']
+                  
+                  elif state == 'FAILED' or state == 'CANCELLED':
+                      print(get_query_execution)
+                      
+                      raise Exception
+
+          def make_table(array):
+              table = ''
+              
+              for arr in array:
+                  table_row = f"""
+                      <tr>
+                          <td>{arr[0]}</td>
+                          <td>{arr[1]}</td>
+                          <td>{arr[2]}</td>
+                      </tr>
+                  """
+                  table += table_row
+              
+              return table
+
+          def create_docs(alb_data_list):
+              DOCS = f"""
+              <h3>ALB Traffic Log ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})</h3>
+              
+              <table>
+                  <tr>
+                      <th>Path</th>
+                      <th>Method</th>
+                      <th>Count</th>
+                  </tr>
+                  {make_table(alb_data_list)}
+              </table>
+              """
+              
+              return DOCS
+              
+
+          def lambda_handler(event, context):
+              aws_account_id = context.invoked_function_arn.split(":")[4]
+
+              create_database()
+              create_table(aws_account_id)
+              alb_data_list = [[item['Data'][0]['VarCharValue'], item['Data'][1]['VarCharValue'], item['Data'][2]['VarCharValue']] for item in get_alb_requests()]
+              
+              return create_docs(alb_data_list[1:])
+
+Outputs:
+  TrafficLogDashboardWidget:
+    Value: !Sub
+      - |
+        {
+            "type": "custom",
+            "x": 16,
+            "y": 1,
+            "width": 5,
+            "height": 6,
+            "properties": {
+                "endpoint": "${function_arn}",
+                "updateOn": {
+                    "refresh": true,
+                    "resize": true,
+                    "timeRange": true
+                },
+                "title": "ALB Traffic Log"
+            }
+        }
+      - function_arn: !GetAtt TrafficLogFunction.Arn
