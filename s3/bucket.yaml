@@ -1,0 +1,128 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: "[REQUIRED] The name of S3 bucket."
+  
+  BucketEncryptionAlgorithm:
+    Type: String
+    Description: "[REQUIRED] The type of S3 bucket server-side encryption."
+    AllowedValues:
+      - AES256
+      - aws:kms
+    Default: aws:kms
+  
+  BucketEncryptionKmsKeyId:
+    Type: String
+    Description: "[optional] The KMS key id or arn for S3 bucket server-side encryption."
+    Default: ""
+  
+  LoggingDestinationBucketName:
+    Type: String
+    Description: "[optional] The bucket name of S3 bucket logging destination."
+    Default: ""
+  
+  LoggingDestinationPrefix:
+    Type: String
+    Description: "[optional] The log prefix of S3 bucket logging."
+    Default: ""
+  
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
+
+Metadata:
+    AWS::CloudFormation::Interface:
+      ParameterGroups:
+        - Label:
+            default: Stack Configuration
+          Parameters:
+            - ProjectName
+        
+        - Label:
+            default: Bucket Configuration - General
+          Parameters:
+            - BucketName
+        
+        - Label:
+            default: Bucket Configuration - Encryption
+          Parameters:
+            - BucketEncryptionAlgorithm
+            - BucketEncryptionKmsKeyId
+        
+        - Label:
+            default: Bucket Configuration - Logging
+          Parameters:
+            - LoggingDestinationBucketName
+            - LoggingDestinationPrefix
+
+Conditions:
+  UseKms: !Equals [!Ref BucketEncryptionAlgorithm, aws:kms]
+  UseKmsCmk: !Not [!Equals [!Ref BucketEncryptionKmsKeyId, ""]]
+  UseLogging: !Not [ !Equals [!Ref LoggingDestinationBucketName, ""] ]
+  UseLoggingPrefix: !Not [ !Equals [!Ref LoggingDestinationPrefix, ""] ]
+
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: !Ref BucketEncryptionAlgorithm
+              KMSMasterKeyID: !If
+                - UseKms
+                - !If
+                  - UseKmsCmk
+                  - !Ref BucketEncryptionKmsKeyId
+                  - !Sub "arn:aws:kms:ap-northeast-2:648911607072:alias/aws/s3"
+                - !Ref AWS::NoValue
+      BucketName: !Ref BucketName
+      IntelligentTieringConfigurations:
+        - Id: intelligence-tiering
+          Status: Enabled
+          Tierings:
+            - AccessTier: ARCHIVE_ACCESS
+              Days: 90
+            - AccessTier: DEEP_ARCHIVE_ACCESS 
+              Days: 180
+      LifecycleConfiguration:
+        Rules:
+          - Id: intelligence-tiering
+            NoncurrentVersionTransitions:
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 30
+              - StorageClass: ONEZONE_IA
+                TransitionInDays: 90
+              - StorageClass: GLACIER
+                TransitionInDays: 180
+              - StorageClass: DEEP_ARCHIVE
+                TransitionInDays: 360
+            Status: Enabled
+            Transitions:
+              - StorageClass: INTELLIGENT_TIERING
+                TransitionInDays: 0
+      LoggingConfiguration: !If
+        - UseLogging
+        - DestinationBucketName: !Ref LoggingDestinationBucketName
+          LogFilePrefix: !If
+            - UseLoggingPrefix
+            - !Ref LoggingDestinationPrefix
+            - !Ref AWS::NoValue
+        - !Ref AWS::NoValue
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+      VersioningConfiguration:
+        Status: Enabled
