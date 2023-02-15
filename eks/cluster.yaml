@@ -42,9 +42,9 @@ Parameters:
     Default: "1.24"
 
   # Cluster configuration - network
-  AdditionalSecurityGroupName:
-    Type: String
-    Description: "[REQUIRED] The name of EKS cluster's additional Security Group."
+  AdditionalSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: "[REQUIRED] The id of EKS cluster's additional Security Group."
   VpcId:
     Type: AWS::EC2::VPC::Id
     Description: "[REQUIRED] The id of EKS cluster's VPC."
@@ -92,9 +92,9 @@ Parameters:
     Type: Number
     Description: "[optional] The size of node gruop's disk."
     Default: "20"
-  InstanceTypes:
-    Type: List<String>
-    Description: "[REQUIRED] The types for node group's EC2 instances."
+  InstanceType:
+    Type: String
+    Description: "[REQUIRED] The type for node group's EC2 instances."
     Default: "t3.medium"
   NodegroupName:
     Type: String
@@ -111,6 +111,15 @@ Parameters:
   ScalingMinSize:
     Type: Number
     Description: "[REQUIRED] The min size of EKS cluster node group's scaling."
+  NodegroupLaunchTemplateName:
+    Type: String
+    Description: "[REQUIRED] The name of node group's launch template."
+  NodegroupSecurityGroupName:
+    Type: String
+    Description: "[REQUIRED] The security group name of EKS cluster's node group."
+  NodegroupInstancesName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS cluster's node group."
 
   # Node configuration - fargate
   EnableFargate:
@@ -288,7 +297,7 @@ Metadata:
       - Label:
           default: Cluster Configuration - Network
         Parameters:
-          - AdditionalSecurityGroupName
+          - AdditionalSecurityGroupId
           - VpcId
           - SubnetIds
           - BastionRoleArn
@@ -306,12 +315,15 @@ Metadata:
           - AmiType
           - CapacityType
           - DiskSize
-          - InstanceTypes
+          - InstanceType
           - NodegroupName
           - NodegroupRoleName
           - ScalingDesiredSize
           - ScalingMinSize
           - ScalingMaxSize
+          - NodegroupLaunchTemplateName
+          - NodegroupSecurityGroupName
+          - NodegroupInstancesName
 
       - Label:
           default: Node Configuration - Fargate (YOU CAN ADD MORE OPTIONS IN YAML FILE, PLEASE PATCH COREDNS WHEN YOU USE ONLY FARGATE)
@@ -568,26 +580,15 @@ Resources:
       ServiceToken: !GetAtt TemplatesFunction.Arn
 
   ### EKS cluster's additional Security Group
-  AdditionalSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: !Ref AdditionalSecurityGroupName
-      GroupName: !Ref AdditionalSecurityGroupName
-      Tags:
-        - Key: Name
-          Value: !Ref AdditionalSecurityGroupName
-        - Key: project
-          Value: !Ref ProjectName
-      VpcId: !Ref VpcId
-
   AdditionalSecurityGroupIngress:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
+      Description: CloudFormation Kubernetes Resources(AWSQS) Rule
       IpProtocol: tcp
       FromPort: 443
       ToPort: 443
-      GroupId: !GetAtt AdditionalSecurityGroup.GroupId
-      SourceSecurityGroupId: !GetAtt AdditionalSecurityGroup.GroupId
+      GroupId: !Ref AdditionalSecurityGroupId
+      SourceSecurityGroupId: !Ref AdditionalSecurityGroupId
 
   ### Kubernetes Service Account IAM Role config stack
   ServiceAccountConfig:
@@ -645,7 +646,7 @@ Resources:
         EndpointPrivateAccess: true
         EndpointPublicAccess: false
         SecurityGroupIds:
-          - !GetAtt AdditionalSecurityGroup.GroupId
+          - !Ref AdditionalSecurityGroupId
         SubnetIds: !Ref SubnetIds
       RoleArn: !GetAtt ClusterRole.Arn
       KubernetesApiAccess:
@@ -736,7 +737,7 @@ Resources:
                     - ec2:DescribeInstances
                     - ec2:DescribeTags
                     - ec2:DescribeNetworkInterfaces
-                    - ec2:DescribeInstanceTypes
+                    - ec2:DescribeInstanceType
                   Resource: "*"
                 - Effect: Allow
                   Action:
@@ -746,6 +747,9 @@ Resources:
             PolicyName: AmazonEKS_CNI_IPv6_Policy
         - !Ref AWS::NoValue
       RoleName: !Ref NodegroupRoleName
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
 
   NodegroupRoleInstanceProfile:
     Type: "AWS::IAM::InstanceProfile"
@@ -755,6 +759,61 @@ Resources:
       InstanceProfileName: !Ref NodegroupRoleName
       Roles:
         - !Ref NodegroupRoleName
+  
+  NodegroupSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: IsEnableNodegroup
+    Properties:
+      GroupDescription: !Ref NodegroupSecurityGroupName
+      GroupName: !Ref NodegroupSecurityGroupName
+      Tags:
+        - Key: Name
+          Value: !Ref NodegroupSecurityGroupName
+        - Key: project
+          Value: !Ref ProjectName
+      VpcId: !Ref VpcId
+
+  NodegroupLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Condition: IsEnableNodegroup
+    Properties:
+      LaunchTemplateData:
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: !Ref DiskSize
+              VolumeType: gp3
+        InstanceType: !Ref InstanceType
+        MetadataOptions:  # https://aws.github.io/aws-eks-best-practices/security/docs/iam/#when-your-application-needs-access-to-imds-use-imdsv2-and-increase-the-hop-limit-on-ec2-instances-to-2
+          HttpEndpoint: enabled
+          HttpPutResponseHopLimit: 2
+          HttpTokens: required
+          InstanceMetadataTags: enabled
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Ref NodegroupInstancesName
+              - Key: project
+                Value: !Ref ProjectName
+          - ResourceType: volume
+            Tags:
+              - Key: Name
+                Value: !Ref NodegroupInstancesName
+              - Key: project
+                Value: !Ref ProjectName
+          - ResourceType: network-interface
+            Tags:
+              - Key: Name
+                Value: !Ref NodegroupInstancesName
+              - Key: project
+                Value: !Ref ProjectName
+      LaunchTemplateName: !Ref NodegroupLaunchTemplateName
+      TagSpecifications:
+        - ResourceType: launch-template
+          Tags:
+            - Key: project
+              Value: !Ref ProjectName
 
   Nodegroup:
     Type: AWS::EKS::Nodegroup
@@ -764,16 +823,16 @@ Resources:
       AmiType: !Ref AmiType
       CapacityType: !Ref CapacityType
       ClusterName: !Ref Cluster
-      DiskSize: !Ref DiskSize # please disable when you use launch template
+      # DiskSize: !Ref DiskSize # please disable when you use launch template
       # ForceUpdateEnabled: true or false # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-eks-nodegroup.html#cfn-eks-nodegroup-forceupdateenabled
-      InstanceTypes: !Ref InstanceTypes # please disable when you use launch template
+      # InstanceType: !Ref InstanceType # please disable when you use launch template
       # Labels: # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-eks-nodegroup.html#cfn-eks-nodegroup-labels
       #   Key1: Value2
       #   Key2: Value2
-      # LaunchTemplate: # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-eks-nodegroup-launchtemplatespecification.html
-      #   Id:
-      #   Name:
-      #   Version:
+      LaunchTemplate: # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-eks-nodegroup-launchtemplatespecification.html
+        Id: !Ref NodegroupLaunchTemplate
+        # Name:
+        Version: !GetAtt NodegroupLaunchTemplate.LatestVersionNumber
       NodegroupName: !Ref NodegroupName
       NodeRole: !GetAtt NodegroupRole.Arn
       # RemoteAccess: # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-eks-nodegroup-remoteaccess.html
@@ -1005,7 +1064,7 @@ Outputs:
   ClusterRoleArn:
     Value: !GetAtt ClusterRole.Arn
   AdditionalSecurityGroupId:
-    Value: !GetAtt AdditionalSecurityGroup.GroupId
+    Value: !Ref AdditionalSecurityGroupId
   ClusterArn:
     Value: !GetAtt Cluster.Arn
   ClusterSecurityGroupId:

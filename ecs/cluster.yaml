@@ -5,10 +5,7 @@ Parameters:
     Type: String
     Description: "[REQUIRED] The name of ECS cluster."
   
-  TemplateBucketName:
-    Type: String
-    Description: "[REQUIRED] The name of templates S3 bucket."
-  
+  ### ECS Container Insights
   ContainerInsights:
     Type: String
     Description: "[optional] Enable of disable ECS cluster's container insights."
@@ -17,6 +14,17 @@ Parameters:
       - "disabled"
     Default: "enabled"
   
+  ContainerInsightsTaskRoleName:
+    Type: String
+    Description: "[optional] The name of container insights task's IAM role."
+    Default: ""
+  
+  ContainerInsightsTaskExecutionRoleName:
+    Type: String
+    Description: "[optional] The name of container insights task execution's IAM role."
+    Default: ""
+
+  ### ECS Alarms
   EnableClusterAlarms:
     Type: String
     Description: "[optional] Enable of disable to create ECS cluster's alarms."
@@ -36,7 +44,7 @@ Parameters:
       - "true"
       - "false"
     Default: "false"
-  
+
   Ec2VpcId:
     Type: AWS::EC2::VPC::Id
     Description: "[REQUIRED] The VPC id of EC2 capacity provider for ECS cluster."
@@ -47,14 +55,14 @@ Parameters:
     Description: "[REQUIRED] The security group name of EC2 capacity provider for ECS cluster."
 
   BastionSecurityGroupForEc2:
-    Type: AWS::EC2::SecurityGroup::Id
+    Type: String
     Description: "[optional] The security group id of bastion security group."
     Default: ""
 
   Ec2RoleName:
     Type: String
     Description: "[REQUIRED] The name of EC2 capacity provider for ECS cluster."
-  
+
   EC2InstanceName:
     Type: String
     Description: "[REQUIRED] The instance name of EC2 capacity provider for ECS cluster."
@@ -64,26 +72,45 @@ Parameters:
     Type: String
     Description: "[optional] The launch template name of EC2 capacity provider for ECS cluster."
     Default: ""
+
+  # LatestECSOptimizedAMI:
+  #   Description: AMI ID (Amazon Linux vs BottleRocket)
+  #   Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+  #   AllowedValues:
+  #     - "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id"
+  #     - "/aws/service/ecs/optimized-ami/amazon-linux-2/arm64/recommended/image_id"
+  #     - "/aws/service/bottlerocket/aws-ecs-1/x86_64/latest/image_id"
+  #     - "/aws/service/bottlerocket/aws-ecs-1/arm64/latest/image_id"
+  #   Default: "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id"
+
+  Ec2InstanceArchitecture:
+    Type: String
+    Description: "[REQUIRED] The instance architecture of EC2 capacity provider for ECS cluster."
+    AllowedValues:
+      - "x86-64"
+      - "arm64"
   
-  LatestECSOptimizedAMI:
-    Description: AMI ID
-    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
-    Default: "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id"
+  Ec2InstanceOs:
+    Type: String
+    Description: "[REQUIRED] The instance os of EC2 capacity provider for ECS cluster."
+    AllowedValues:
+      - "amazonlinux2"
+      - "bottlerocket"
 
   Ec2InstanceType:
     Type: String
     Description: "[REQUIRED] The instance type of EC2 capacity provider for ECS cluster."
-  
+
   Ec2KeyName:
-    Type: AWS::EC2::KeyPair::KeyName
+    Type: String
     Description: "[optional] The key pair name of EC2 capacity provider for ECS cluster."
     Default: ""
-  
+
   Ec2SshPort:
     Type: Number
     Description: "[optional] The SSH port number of EC2 capacity provider for ECS cluster."
     Default: "22"
-  
+
   Ec2AutoScalingGroupName:
     Type: String
     Description: "[optional] The auto scaling group name of EC2 capacity provider for ECS cluster."
@@ -93,12 +120,12 @@ Parameters:
     Type: Number
     Description: "[REQUIRED] The desired size of EC2 AutoScaling Group."
     Default: "2"
-  
+
   Ec2AutoScalingMinSize:
     Type: Number
     Description: "[REQUIRED] The min size of EC2 AutoScaling Group."
     Default: "2"
-  
+
   Ec2AutoScalingMaxSize:
     Type: Number
     Description: "[REQUIRED] The max size of EC2 AutoScaling Group."
@@ -117,6 +144,36 @@ Parameters:
       - "false"
     Default: "false"
 
+  ### ECS Alarms
+  CpuUtilizationAlarmName:
+    Type: String
+    Description: "[optional] The name of CpuUtilizationAlarm."
+    Default: ""
+
+  MemoryUtilizationAlarmName:
+    Type: String
+    Description: "[optional] The name of MemoryUtilizationAlarm."
+    Default: ""
+
+  CpuUtilizationThreshold:
+    Type: Number
+    Description: "[optional] The number of CPUUtilization threshold. Default is 70(%)."
+    Default: "70"
+
+  MemoryUtilizationThreshold:
+    Type: Number
+    Description: "[optional] The number of MemoryUtilization threshold. Default is 70(%)."
+    Default: "70"
+
+Mappings:
+  Ec2InstanceAmi:
+    x86-64:
+      amazonlinux2: "{{resolve:ssm:/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id}}"
+      bottlerocket: "{{resolve:ssm:/aws/service/bottlerocket/aws-ecs-1/x86_64/latest/image_id}}"
+    arm64:
+      amazonlinux2: "{{resolve:ssm:/aws/service/ecs/optimized-ami/amazon-linux-2/arm64/recommended/image_id}}"
+      bottlerocket: "{{resolve:ssm:/aws/service/bottlerocket/aws-ecs-1/arm64/latest/image_id}}"
+
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -124,20 +181,32 @@ Metadata:
           default: Stack Configuration
         Parameters:
           - ProjectName
-          - TemplateBucketName
-      
+
       - Label:
           default: ECS Cluster Configuration - General
         Parameters:
           - ClusterName
-          - ContainerInsights
-          - EnableClusterAlarms
       
+      - Label:
+          default: ECS Cluster Configuration - Container Insights
+        Parameters:
+          - ContainerInsights
+          - ContainerInsightsTaskRoleName
+          - ContainerInsightsTaskExecutionRoleName
+
+      - Label:
+          default: ECS Cluster Configuration - Alarm
+        Parameters:
+          - EnableClusterAlarms
+          - CpuUtilizationAlarmName
+          - MemoryUtilizationAlarmName
+          - CpuUtilizationThreshold
+          - MemoryUtilizationThreshold
+
       - Label:
           default: ECS Capacity Provider Configuration - EC2
         Parameters:
           - EnableEc2CapacityProvider
-          - LatestECSOptimizedAMI
           - Ec2VpcId
           - Ec2securityGroupName
           - BastionSecurityGroupForEc2
@@ -145,6 +214,8 @@ Metadata:
           - EC2InstanceName
           - Ec2LaunchTemplateName
           - Ec2InstanceType
+          - Ec2InstanceArchitecture
+          - Ec2InstanceOs
           - Ec2KeyName
           - Ec2SshPort
           - Ec2AutoScalingGroupName
@@ -152,25 +223,41 @@ Metadata:
           - Ec2AutoScalingMinSize
           - Ec2AutoScalingMaxSize
           - Ec2AutoScalingSubnetIds
-      
+
       - Label:
           default: ECS Capacity Provider Configuration - Fargate
         Parameters:
           - EnableFargateCapacityProvider
 
 Conditions:
+  ### ECS Container Insights
+  IsEnableContainerInsights: !Equals [!Ref ContainerInsights, "enabled"]
+  UseContainerInsightsTaskRoleName: !Not [!Equals [!Ref ContainerInsightsTaskRoleName, ""]]
+  UseContainerInsightsTaskExecutionRoleName: !Not [!Equals [!Ref ContainerInsightsTaskExecutionRoleName, ""]]
+
+
   IsEnableClusterAlarms: !Equals [!Ref EnableClusterAlarms, "true"]
 
   IsEnableEc2CapacityProvider: !Equals [!Ref EnableEc2CapacityProvider, "true"]
 
+  IsAmazonLinux2: !Equals [!Ref Ec2InstanceOs, "amazonlinux2"]
+
   UseBastionSecurityGroup: !And
     - !Not [!Equals [!Ref BastionSecurityGroupForEc2, ""]]
     - !Condition IsEnableEc2CapacityProvider
+    - !Condition IsAmazonLinux2
   UseEc2LaunchTemplateName: !Not [!Equals [!Ref Ec2LaunchTemplateName, ""]]
-  UseEc2KeyPair: !Not [!Equals [!Ref Ec2KeyName, ""]]
+  
   UseEc2AutoScalingGroupName: !Not [!Equals [!Ref Ec2AutoScalingGroupName, ""]]
 
-  IsEnableFargateCapacityProvider: !Equals [!Ref EnableFargateCapacityProvider, ""]
+  UseEc2KeyPair: !And [!Condition IsAmazonLinux2, !Not [!Equals [!Ref Ec2KeyName, ""]]]
+
+  IsEnableFargateCapacityProvider:
+    !Equals [!Ref EnableFargateCapacityProvider, ""]
+
+  UseCpuUtilizationAlarmName: !Not [!Equals [!Ref CpuUtilizationAlarmName, ""]]
+  UseMemoryUtilizationAlarmName:
+    !Not [!Equals [!Ref MemoryUtilizationAlarmName, ""]]
 
 Resources:
   ### ECS Cluster
@@ -192,6 +279,115 @@ Resources:
         - Key: project
           Value: !Ref ProjectName
 
+  ### ECS Container Insights
+  ContainerInsightsTaskRole:
+    Type: AWS::IAM::Role
+    Condition: IsEnableContainerInsights
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Sid: ''
+          Effect: Allow
+          Principal:
+            Service: ecs-tasks.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+      RoleName: !If
+        - UseContainerInsightsTaskRoleName
+        - !Ref ContainerInsightsTaskRoleName
+        - !Sub "${ClusterName}-cwagent-task-role"
+  
+  ContainerInsightsTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Condition: IsEnableContainerInsights
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Sid: ''
+          Effect: Allow
+          Principal:
+            Service: ecs-tasks.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+        - "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+      RoleName: !If
+        - UseContainerInsightsTaskExecutionRoleName
+        - !Ref ContainerInsightsTaskExecutionRoleName
+        - !Sub "${ClusterName}-cwagent-task-execution-role"
+
+  ContainerInsightsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Condition: IsEnableContainerInsights
+    Properties:
+      Family: ecs-cwagent-daemon-service
+      TaskRoleArn: !GetAtt ContainerInsightsTaskRole.Arn
+      ExecutionRoleArn: !GetAtt ContainerInsightsTaskExecutionRole.Arn
+      NetworkMode: bridge
+      ContainerDefinitions:
+        - Image: amazon/cloudwatch-agent:1.247354.0b251981
+          Name: cloudwatch-agent
+          MountPoints:
+            - ReadOnly: true
+              ContainerPath: "/rootfs/proc"
+              SourceVolume: proc
+            - ReadOnly: true
+              ContainerPath: "/rootfs/dev"
+              SourceVolume: dev
+            - ReadOnly: true
+              ContainerPath: "/sys/fs/cgroup"
+              SourceVolume: al2_cgroup
+            - ReadOnly: true
+              ContainerPath: "/cgroup"
+              SourceVolume: al1_cgroup
+            - ReadOnly: true
+              ContainerPath: "/rootfs/sys/fs/cgroup"
+              SourceVolume: al2_cgroup
+            - ReadOnly: true
+              ContainerPath: "/rootfs/cgroup"
+              SourceVolume: al1_cgroup
+          Environment:
+            - Name: USE_DEFAULT_CONFIG
+              Value: 'True'
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-create-group: 'True'
+              awslogs-group: "/ecs/ecs-cwagent-daemon-service"
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+      RequiresCompatibilities:
+        - EC2
+      Volumes:
+        - Name: proc
+          Host:
+            SourcePath: "/proc"
+        - Name: dev
+          Host:
+            SourcePath: "/dev"
+        - Name: al1_cgroup
+          Host:
+            SourcePath: "/cgroup"
+        - Name: al2_cgroup
+          Host:
+            SourcePath: "/sys/fs/cgroup"
+      Cpu: '128'
+      Memory: '64'
+  
+  ContainerInsightsDaemonService:
+    Type: AWS::ECS::Service
+    Condition: IsEnableContainerInsights
+    Properties:
+      TaskDefinition: !Ref ContainerInsightsTaskDefinition
+      Cluster: !Ref Cluster
+      LaunchType: EC2
+      SchedulingStrategy: DAEMON
+      ServiceName: cwagent-daemon-service
+
+
   ### ECS Capacity Provider - EC2
   Ec2SecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -199,6 +395,11 @@ Resources:
     Properties:
       GroupDescription: !Ref Ec2securityGroupName
       GroupName: !Ref Ec2securityGroupName
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
           Value: !Ref Ec2securityGroupName
@@ -215,18 +416,30 @@ Resources:
       FromPort: !Ref Ec2SshPort
       ToPort: !Ref Ec2SshPort
       SourceSecurityGroupId: !Ref BastionSecurityGroupForEc2
+      Description: SSH - bastion
+  
+  BastionSecurityGroupOutbound:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: UseBastionSecurityGroup
+    Properties:
+      IpProtocol: tcp
+      GroupId: !Ref BastionSecurityGroupForEc2
+      FromPort: !Ref Ec2SshPort
+      ToPort: !Ref Ec2SshPort
+      DestinationSecurityGroupId: !GetAtt Ec2SecurityGroup.GroupId
+      Description: SSH - ECS EC2
 
   Ec2Role:
     Type: AWS::IAM::Role
     Condition: IsEnableEc2CapacityProvider
     Properties:
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
-        - Effect: Allow
-          Principal:
-            Service: ec2.amazonaws.com
-          Action: sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
       ManagedPolicyArns:
         - "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
       RoleName: !Ref Ec2RoleName
@@ -235,7 +448,7 @@ Resources:
           Value: !Ref Ec2RoleName
         - Key: project
           Value: !Ref ProjectName
-  
+
   Ec2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Condition: IsEnableEc2CapacityProvider
@@ -249,7 +462,17 @@ Resources:
     Condition: IsEnableEc2CapacityProvider
     Properties:
       LaunchTemplateData:
-        ImageId: !Ref LatestECSOptimizedAMI
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              DeleteOnTermination: false
+              Encrypted: true
+              Iops: 3000
+              KmsKeyId: !Sub arn:aws:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/ebs
+              Throughput: 125
+              VolumeSize: 100
+              VolumeType: gp3
+        ImageId: !FindInMap [Ec2InstanceAmi, !Ref Ec2InstanceArchitecture, !Ref Ec2InstanceOs]
         InstanceType: !Ref Ec2InstanceType
         SecurityGroupIds:
           - !GetAtt Ec2SecurityGroup.GroupId
@@ -259,6 +482,8 @@ Resources:
           - !Ref AWS::NoValue
         IamInstanceProfile:
           Arn: !GetAtt Ec2InstanceProfile.Arn
+        Monitoring:
+          Enabled: true
         TagSpecifications:
           - ResourceType: instance
             Tags:
@@ -279,17 +504,24 @@ Resources:
               - Key: project
                 Value: !Ref ProjectName
         UserData:
-          Fn::Base64: !Sub
-            - |
-              #!/bin/bash
+          Fn::Base64: !If
+            - IsAmazonLinux2
+            - !Sub
+              - |
+                #!/bin/bash
 
-              echo "Port ${ssh_port}" >> /etc/ssh/sshd_config
+                echo "Port ${ssh_port}" >> /etc/ssh/sshd_config
 
-              systemctl restart sshd
+                systemctl restart sshd
 
-              echo ECS_CLUSTER=${cluster_name} >> /etc/ecs/ecs.config;
-            - ssh_port: !Ref Ec2SshPort
-              cluster_name: !Ref Cluster
+                echo ECS_CLUSTER=${cluster_name} >> /etc/ecs/ecs.config;
+              - cluster_name: !Ref Cluster
+                ssh_port: !Ref Ec2SshPort
+            - !Sub
+              - |
+                [settings.ecs]
+                cluster = "${cluster_name}"
+              - cluster_name: !Ref Cluster
       LaunchTemplateName: !If
         - UseEc2LaunchTemplateName
         - !Ref Ec2LaunchTemplateName
@@ -310,12 +542,14 @@ Resources:
         - !Ref AWS::NoValue
       MaxSize: !Ref Ec2AutoScalingMaxSize
       MinSize: !Ref Ec2AutoScalingMinSize
+      MetricsCollection:
+        - Granularity: 1Minute
       DesiredCapacity: !Ref Ec2AutoScalingDesiredSize
       LaunchTemplate:
         LaunchTemplateId: !Ref Ec2LaunchTemplate
         Version: !GetAtt Ec2LaunchTemplate.LatestVersionNumber
       VPCZoneIdentifier: !Ref Ec2AutoScalingSubnetIds
-  
+
   Ec2CapacityProvider:
     Type: AWS::ECS::CapacityProvider
     Condition: IsEnableEc2CapacityProvider
@@ -348,23 +582,64 @@ Resources:
       DefaultCapacityProviderStrategy: []
 
   ### ECS Alarms
-  Alarms:
-    Type: AWS::CloudFormation::Stack
-    Condition: IsEnableClusterAlarms
+  CpuUtilizationAlarm:
+    Type: AWS::CloudWatch::Alarm
     Properties:
-      TemplateURL: !Sub https://${TemplateBucketName}.s3.amazonaws.com/observability-templates/alarm/ecs/ecs-cluster-alarm.yaml # https://github.com/marcus16-kang/observability-templates/blob/main/alarm/ecs/ecs-cluster-alarm.yaml
-      Parameters:
-        ClusterName: !Ref Cluster
-      Tags:
-        - Key: project
-          Value: !Ref ProjectName
+      ActionsEnabled: true
+      AlarmName: !If
+        - UseCpuUtilizationAlarmName
+        - !Ref CpuUtilizationAlarmName
+        - !Sub
+          - "ECS/${cluster_name}/CpuUtilization"
+          - cluster_name: !Ref ClusterName
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      DatapointsToAlarm: 1
+      EvaluationPeriods: 1
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ClusterName
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Period: 60
+      Statistic: Average
+      Threshold: !Ref CpuUtilizationThreshold
+      TreatMissingData: missing
+  
+  MemoryUtilizationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: true
+      AlarmName: !If
+        - UseMemoryUtilizationAlarmName
+        - !Ref MemoryUtilizationAlarmName
+        - !Sub
+          - "ECS/${cluster_name}/MemoryUtilization"
+          - cluster_name: !Ref ClusterName
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      DatapointsToAlarm: 1
+      EvaluationPeriods: 1
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ClusterName
+      MetricName: MemoryUtilization
+      Namespace: AWS/ECS
+      Period: 60
+      Statistic: Average
+      Threshold: !Ref MemoryUtilizationThreshold
+      TreatMissingData: missing
 
 Outputs:
   ClusterName:
     Value: !Ref Cluster
-  
+
   ClusterArn:
     Value: !GetAtt Cluster.Arn
+  
+  CpuUtilizationAlarmArn:
+    Value: !GetAtt CpuUtilizationAlarm.Arn
+  
+  MemoryUtilizationAlarmArn:
+    Value: !GetAtt MemoryUtilizationAlarm.Arn
 
   ClusterInfraDashboard:
     Value: !Sub
@@ -417,5 +692,27 @@ Outputs:
                 "period": 60
             }
         },
+        ${alarm_dashboard}
       - cluster_name: !Ref ClusterName
         region: !Ref AWS::Region
+        alarm_dashboard: !If
+          - IsEnableClusterAlarms
+          - !Sub
+            - |
+              {
+                "type": "alarm",
+                "x": 6,
+                "y": 0,
+                "width": 6,
+                "height": 2,
+                "properties": {
+                    "title": "ECS Clutser Alarms",
+                    "alarms": [
+                        "${cpu_utilization_alarm_arn}",
+                        "${memory_utilization_alarm_arn}",
+                    ]
+                }
+              },
+            - cpu_utilization_alarm_arn: !GetAtt CpuUtilizationAlarm.Arn
+              memory_utilization_alarm_arn: !GetAtt MemoryUtilizationAlarm.Arn
+          - ""

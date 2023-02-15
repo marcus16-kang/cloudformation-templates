@@ -78,7 +78,7 @@ Resources:
                 - !If
                   - UseKmsCmk
                   - !Ref BucketEncryptionKmsKeyId
-                  - !Sub "arn:aws:kms:ap-northeast-2:648911607072:alias/aws/s3"
+                  - !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3"
                 - !Ref AWS::NoValue
       BucketName: !Ref BucketName
       IntelligentTieringConfigurations:

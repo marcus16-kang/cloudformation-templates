@@ -48,6 +48,15 @@ Parameters:
     Type: String
     Description: "[REQUIRED] The name of target group."
   
+  TargetType:
+    Type: String
+    Description: "[REQUIRED] the type of target group."
+    AllowedValues:
+      - instance
+      - ip
+      - lambda
+      - alb
+  
   TargetSecurityGroupId:
     Type: AWS::EC2::SecurityGroup::Id
     Description: "[optional] The id of alb target gruop's security group."
@@ -97,6 +106,7 @@ Metadata:
           default: ALB Configuration - Target Group
         Parameters:
           - TargetGroupName
+          - TargetType
           - TargetSecurityGroupId
           - TargetPort
           - HealthCheckPath
@@ -203,7 +213,40 @@ Resources:
   AccessLogBucket:
     Type: AWS::S3::Bucket
     Properties:
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
       BucketName: !Ref AccessLogBucketName
+      IntelligentTieringConfigurations:
+        - Id: intelligence-tiering
+          Status: Enabled
+          Tierings:
+            - AccessTier: ARCHIVE_ACCESS
+              Days: 90
+            - AccessTier: DEEP_ARCHIVE_ACCESS 
+              Days: 180
+      LifecycleConfiguration:
+        Rules:
+          - Id: intelligence-tiering
+            NoncurrentVersionTransitions:
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 30
+              - StorageClass: ONEZONE_IA
+                TransitionInDays: 90
+              - StorageClass: GLACIER
+                TransitionInDays: 180
+              - StorageClass: DEEP_ARCHIVE
+                TransitionInDays: 360
+            Status: Enabled
+            Transitions:
+              - StorageClass: INTELLIGENT_TIERING
+                TransitionInDays: 0
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -212,6 +255,8 @@ Resources:
       Tags:
         - Key: project
           Value: !Ref ProjectName
+      VersioningConfiguration:
+        Status: Enabled
   
   AccessLogBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -332,7 +377,7 @@ Resources:
         #   Value: '86400'                            # `86400`(default) or `1`(1 second) ~ `604800`(1 week)
         # - Key: lambda.multi_value_headers.enabled     # use lambda function as the target.
         #   Value: false                              # `false`(default) or `true`
-      TargetType: instance                          # `instance`(default), `ip`, `lambda` or `alb`
+      TargetType: !Ref TargetType                       # `instance`(default), `ip`, `lambda` or `alb`
       UnhealthyThresholdCount: 2                    # `2`(default), `2` ~ `10`. If the target group protocol is TCP, TCP_UDP, UDP, TLS, HTTP or HTTPS, the default is `2`. For target groups with a protocol of GENEVE, the default is `3`. If the target type is lambda, the default is `5`.
       VpcId: !Ref VpcId
   
@@ -363,6 +408,10 @@ Resources:
 Outputs:
   SecurityGroupId:
     Value: !GetAtt SecurityGroup.GroupId
+  TargetGroupArn:
+    Value: !Ref TargetGroup
+  ListenerArn:
+    Value: !Ref Listener
   LoadBalancerArn:
     Value: !Ref LoadBalancer
   LoadBalancerDnsName:

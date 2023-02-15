@@ -1,0 +1,169 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: "AWS CodeDeploy Stack for ECS Blue-Green CI/CD."
+
+Parameters:
+  # Stack Configuration
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
+
+  # CodeDeploy Configuration - Application
+  ApplicationName:
+    Type: String
+    Description: "[REQUIRED] The name of CodeDeploy application."
+  
+  ServiceRoleName:
+    Type: String
+    Description: "[REQUIRED] The name of CodeDeploy service IAM role."
+  
+  # CodeDeploy Configuration - Deployment Group
+  DeploymentGroupName:
+    Type: String
+    Description: "[REQUIRED] The name of CodeDeploy deployment group."
+
+  EcsClusterName:
+    Type: String
+    Description: "[REQUIRED] The name of ECS cluster for CodeDeploy deployment group."
+  
+  EcsServiceName:
+    Type: String
+    Description: "[REQUIRED] The name of ECS service for CodeDeploy deployment group."
+
+  # CodeDeploy Configuration - Load Balancer
+  AlbListenerArn:
+    Type: String
+    Description: "[REQUIRED] The arn of ECS service's ALB listener."
+  
+  AlbTestListenerArn:
+    Type: String
+    Description: "[optional] The arn of ECS service's ALB test listener."
+    Default: ""
+  
+  AlbTargetGroup1Name:
+    Type: String
+    Description: "[REQUIRED] The name of ECS service's ALB target group 1."
+  
+  AlbTargetGroup2Name:
+    Type: String
+    Description: "[REQUIRED] The name of ECS service's ALB target group 2."
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+
+      - Label:
+          default: CodeDeploy Configuration - Application
+        Parameters:
+          - ApplicationName
+          - ServiceRoleName
+      
+      - Label:
+          default: CodeDeploy Configuration - Deployment Group
+        Parameters:
+          - DeploymentGroupName
+          - EcsClusterName
+          - EcsServiceName
+      
+      - Label:
+          default: CodeDeploy Configuration - Load Balancer
+        Parameters:
+          - AlbListenerArn
+          - AlbTestListenerArn
+          - AlbTargetGroup1Name
+          - AlbTargetGroup2Name
+
+Conditions:
+  UseAlbTestListenerArn: !Not [!Equals [!Ref AlbTestListenerArn, ""]]
+
+Resources:
+  ServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codedeploy.amazonaws.com
+            Action: sts:AssumeRole
+      Description: Allows CodeDeploy to read S3 objects, invoke Lambda functions, publish to SNS topics, and update ECS services on your behalf.
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AWSCodeDeployRoleForECS"
+      MaxSessionDuration: 3600
+      Path: /
+      RoleName: !Ref ServiceRoleName
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+  
+  Application:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ApplicationName: !Ref ApplicationName
+      ComputePlatform: ECS
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+  
+  DeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    Properties:
+      ApplicationName: !Ref Application
+      AutoRollbackConfiguration:
+        Enabled: true
+        Events:
+          - "DEPLOYMENT_FAILURE"
+      BlueGreenDeploymentConfiguration:
+        DeploymentReadyOption:
+          ActionOnTimeout: CONTINUE_DEPLOYMENT
+          WaitTimeInMinutes: 0
+        TerminateBlueInstancesOnDeploymentSuccess:
+          Action: TERMINATE
+          TerminationWaitTimeInMinutes: 0
+      DeploymentConfigName: CodeDeployDefault.ECSAllAtOnce  # CodeDeployDefault.ECSAllAtOnce, CodeDeployDefault.ECSLinear10PercentEvery1Minutes, CodeDeployDefault.ECSLinear10PercentEvery3Minutes, CodeDeployDefault.ECSCanary10Percent5Minutes, CodeDeployDefault.ECSCanary10Percent15Minutes
+      DeploymentGroupName: !Ref DeploymentGroupName
+      DeploymentStyle:
+        DeploymentOption: WITH_TRAFFIC_CONTROL
+        DeploymentType: BLUE_GREEN
+      ECSServices:
+        - ClusterName: !Ref EcsClusterName
+          ServiceName: !Ref EcsServiceName
+      LoadBalancerInfo:
+        TargetGroupPairInfoList:
+          - ProdTrafficRoute:
+              ListenerArns:
+                - !Ref AlbListenerArn
+            TargetGroups:
+              - Name: !Ref AlbTargetGroup2Name
+              - Name: !Ref AlbTargetGroup1Name
+            TestTrafficRoute: !If
+              - UseAlbTestListenerArn
+              - ListenerArns:
+                - !Ref AlbTestListenerArn
+              - !Ref AWS::NoValue
+      ServiceRoleArn: !GetAtt ServiceRole.Arn
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+      # TriggerConfigurations:
+      #   - TriggerEvents:
+      #       - ""
+      #     TriggerName: 
+      #     TriggerTargetArn: 
+
+Outputs:
+  ApplicationName:
+    Value: !Ref Application
+    Export:
+      Name: !Sub ${AWS::StackName}-ApplicationName
+  
+  DeploymentGroupName:
+    Value: !Ref DeploymentGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-DeploymentGroupName
+  

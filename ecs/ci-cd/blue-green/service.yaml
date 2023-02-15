@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  # Stack Configuration
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
+  
+  # Service Configuration - General
+  ClusterName:
+    Type: String
+    Description: "[REQUIRED] The name of ECS cluster."
+  
+  ServiceName:
+    Type: String
+    Description: "[REQUIRED] The name of this service."
+
+  CapacityProviderName:
+    Type: String
+    Description: "[REQUIRED] The name of capacity provider."
+  
+  DesiredCount:
+    Type: Number
+    Description: "[REQUIRED] The number of task in service."
+  
+  TaskDefinition:
+    Type: String
+    Description: "[REQUIRED] The family and revision (family:revision)."
+  
+  # Service Configuration - Load Balancer
+  ContainerName:
+    Type: String
+    Description: "[REQUIRED] The name of the container to associate with the laod balancer."
+  
+  ContainerPort:
+    Type: Number
+    Description: "[REQUIRED] The port on the container to associate with the load balancer."
+  
+  TargetGroupArn:
+    Type: String
+    Description: "[REQUIRED] The ARN of the ALB target group."
+  
+  # Service Configuration - Network
+  SecurityGroups:
+    Type: List<AWS::EC2::SecurityGroup::Id>
+    Description: "[REQUIRED] The IDs of the security groups associated with the service."
+  
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: "[REQUIRED] The IDs of the subents associated with the service."
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+      
+      - Label:
+          default: Service Configuration - General
+        Parameters:
+          - ClusterName
+          - ServiceName
+          - CapacityProviderName
+          - DesiredCount
+          - TaskDefinition
+      
+      - Label:
+          default: Service Configuration - Load Balancer
+        Parameters:
+          - ContainerName
+          - ContainerPort
+          - TargetGroupArn
+      
+      - Label:
+          default: Service Configuration - Network
+        Parameters:
+          - SecurityGroups
+          - Subnets
+
+Resources:
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      CapacityProviderStrategy:
+        - Base: 0
+          CapacityProvider: !Ref CapacityProviderName
+          Weight: 1
+      Cluster: !Ref ClusterName
+      DeploymentController:
+        Type: CODE_DEPLOY
+      DesiredCount: !Ref DesiredCount
+      EnableECSManagedTags: true
+      EnableExecuteCommand: false # or true
+      HealthCheckGracePeriodSeconds: 0
+      LoadBalancers:
+        - ContainerName: !Ref ContainerName
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref TargetGroupArn
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups: !Ref SecurityGroups
+          Subnets: !Ref Subnets
+      PropagateTags: SERVICE
+      SchedulingStrategy: REPLICA
+      ServiceName: !Ref ServiceName
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+      TaskDefinition: !Ref TaskDefinition
