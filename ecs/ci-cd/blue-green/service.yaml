@@ -48,6 +48,11 @@ Parameters:
   Subnets:
     Type: List<AWS::EC2::Subnet::Id>
     Description: "[REQUIRED] The IDs of the subents associated with the service."
+  
+  # Service Configuration - Service Discovert
+  CloudMapServiceId:
+    Type: String
+    Description: "[optional] The ID of Cloud Map service for service discovery in ECS."
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -79,6 +84,14 @@ Metadata:
           - SecurityGroups
           - Subnets
 
+      - Label:
+          default: Service Configuration - Service Discovery
+        Parameters:
+          - CloudMapServiceId
+
+Conditions:
+  UseServiceDiscovery: !Not [!Equals [!Ref CloudMapServiceId, ""]]
+
 Resources:
   Service:
     Type: AWS::ECS::Service
@@ -106,6 +119,10 @@ Resources:
       PropagateTags: SERVICE
       SchedulingStrategy: REPLICA
       ServiceName: !Ref ServiceName
+      ServiceRegistries: !If
+        - UseServiceDiscovery
+        - - RegistryArn: !Sub "arn:aws:servicediscovery:${AWS::Region}:${AWS::AccountId}:service/${CloudMapServiceId}"
+        - !Ref AWS::NoValue
       Tags:
         - Key: project
           Value: !Ref ProjectName
