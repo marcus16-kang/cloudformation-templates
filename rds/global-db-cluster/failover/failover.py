@@ -41,7 +41,7 @@ def update_route53_record(hosted_zone_id: str, record_name: str, endpoint: str) 
             'Changes': [
                 {
                     'Action': 'UPSERT',
-                    'ResourceRecoredSet': {
+                    'ResourceRecordSet': {
                         'Name': record_name,
                         'Type': 'CNAME',
                         'TTL': 30,

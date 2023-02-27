@@ -1,0 +1,249 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  # Stack Configuration
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
+
+  # Failover Configuration
+  RdsGlobalClusterName:
+    Type: String
+    Description: "[REQUIRED] The name of RDS global cluster."
+  
+  Route53HostesdZoneId:
+    Type: String
+    Description: "[REQUIRED] The id of Route53 Hosted Zone."
+  
+  Route53RecordName:
+    Type: String
+    Description: "[REQUIRED] The record name of Route53 Hosted Zone(ex. db.test.lobal)."
+  
+  # Function Configuration
+  RoleName:
+    Type: String
+    Description: "[REQUIRED] The name of function's IAM role."
+  
+  FunctionName:
+    Type: String
+    Description: "[REQUIRED] The name of Lambda function."
+  
+  EventName:
+    Type: String
+    Description: "[REQUIRED] The name of EventBridge rule."
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+      
+      - Label:
+          default: Failover Configuration
+        Parameters:
+          - RdsGlobalClusterName
+          - Route53HostesdZoneId
+          - Route53RecordName
+      
+      - Label:
+          default: Function Configuration
+        Parameters:
+          - RoleName
+          - FunctionName
+          - EventName
+
+Resources:
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      Policies:
+        - PolicyName: LambdaBasicExecutionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${FunctionName}:*"
+        - PolicyName: RdsReadOnlyPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rds:DescribeGlobalClusters
+                  - rds:DescribeDBClusters
+                Resource:
+                  - !Sub "arn:aws:rds:*:${AWS::AccountId}:cluster:*"
+                  - !Sub "arn:aws:rds::${AWS::AccountId}:global-cluster:${RdsGlobalClusterName}"
+        - PolicyName: Route53ChangePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - route53:ChangeResourceRecordSets
+                Resource:
+                  - !Sub "arn:aws:route53:::hostedzone/${Route53HostesdZoneId}"
+      RoleName: !Ref RoleName
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+  
+  Function:
+    Type: AWS::Lambda::Function
+    Properties:
+      Architectures:
+        - arm64
+      Code:
+        ZipFile: |
+          import os
+          import boto3
+          from botocore.config import Config
+          from datetime import datetime
+
+          def get_failover_to_cluster(global_cluster_name: str) -> str:
+              client = boto3.client('rds')
+
+              global_cluster_info = client.describe_global_clusters(
+                  GlobalClusterIdentifier=global_cluster_name
+              )['GlobalClusters'][0]
+              failover_state = global_cluster_info.get('FailoverState', None)
+
+              if failover_state:
+                  cluster_arn = failover_state['ToDbClusterArn']
+              
+              else:
+                  cluster_arn = [item['DBClusterArn'] for item in global_cluster_info['GlobalClusterMembers'] if item.get('IsWriter', False)][0]
+              
+              return cluster_arn
+
+
+          def get_endpoint(cluster_arn: str) -> str:
+              cluster_region = cluster_arn.split(':')[3]
+              client = boto3.client('rds', config=Config(region_name=cluster_region))
+
+              response = client.describe_db_clusters(
+                  DBClusterIdentifier=cluster_arn
+              )
+              endpoint = response['DBClusters'][0]['Endpoint']
+
+              return endpoint
+
+          def update_route53_record(hosted_zone_id: str, record_name: str, endpoint: str) -> None:
+              client = boto3.client('route53')
+
+              client.change_resource_record_sets(
+                  HostedZoneId=hosted_zone_id,
+                  ChangeBatch={
+                      'Comment': f'Database failover at {str(datetime.now())}',
+                      'Changes': [
+                          {
+                              'Action': 'UPSERT',
+                              'ResourceRecordSet': {
+                                  'Name': record_name,
+                                  'Type': 'CNAME',
+                                  'TTL': 30,
+                                  'ResourceRecords': [
+                                      {
+                                          'Value': endpoint
+                                      }
+                                  ]
+                              }
+                          }
+                      ]
+                  }
+              )
+
+
+          def lambda_handler(event, context):
+              # populate the existing environment information
+              global_cluster_name = os.getenv('RDS_GLOBAL_CLUSTER_NAME', None)   # test only
+              hosted_zone_id = os.getenv('ROUTE53_HOSTED_ZONE_ID', None)
+              record_name = os.getenv('ROUTE53_RECORD_NAME', None)
+
+              if global_cluster_name is None:
+                  print('Please set the environment variable "RDS_GLOBAL_CLUSTER_NAME".')
+              
+              if hosted_zone_id is None:
+                  print('Please set the environment variable "ROUTE53_HOSTED_ZONE_ID".')
+              
+              if record_name is None:
+                  print('Please set the environment variable "ROUTE53_RECORD_NAME".')
+              
+              if global_cluster_name is not None and hosted_zone_id is not None and record_name is not None:
+                  try:
+                      cluster_arn = get_failover_to_cluster(global_cluster_name)
+                      cluster_endpoint = get_endpoint(cluster_arn)
+                      update_route53_record(hosted_zone_id, record_name, cluster_endpoint)
+
+                  except Exception as e:
+                      print(e)
+              
+              else:
+                  return
+      Description: The function for Aurora Global Database failover.
+      Environment:
+        Variables:
+          RDS_GLOBAL_CLUSTER_NAME: !Ref RdsGlobalClusterName
+          ROUTE53_HOSTED_ZONE_ID: !Ref Route53HostesdZoneId
+          ROUTE53_RECORD_NAME: !Ref Route53RecordName
+      FunctionName: !Ref FunctionName
+      Handler: index.lambda_handler
+      PackageType: Zip
+      Role: !GetAtt Role.Arn
+      Runtime: python3.9
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+      Timeout: 10
+      TracingConfig:
+        Mode: Active
+  
+  EventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: The event rule for Aurora Global Database failover.
+      EventBusName: !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/default"
+      EventPattern:
+        detail-type:
+        - RDS DB Cluster Event
+        source:
+        - aws.rds
+        detail:
+          EventCategories:
+          - global-failover
+          EventID:
+          - RDS-EVENT-0182  # https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Events.Messages.html
+      Name: !Ref EventName
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt Function.Arn
+          Id: !Ref Function
+
+  FunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref Function
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt EventRule.Arn
