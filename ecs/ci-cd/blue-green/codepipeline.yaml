@@ -379,15 +379,24 @@ Resources:
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
-      ArtifactStore:
-        EncryptionKey:
-          Id: !If
-            - UseArtifactEncryptionKeyId
-            - !Ref ArtifactEncryptionKeyId
-            - alias/aws/s3
-          Type: KMS
-        Location: !Ref ArtifactBucket
-        Type: S3
+      ArtifactStores:
+        - ArtifactStore:
+            Location: !Ref ArtifactBucket
+            Type: S3
+            EncryptionKey:
+              Id: !If
+                - UseArtifactEncryptionKeyId
+                - !Ref ArtifactEncryptionKeyId
+                - alias/aws/s3
+              Type: KMS
+          Region: !Ref AWS::Region
+        - ArtifactStore:
+            Location: skills-samsungskills-product-pipeline-artifact-ap-northeast-2
+            Type: S3
+            EncryptionKey:
+              Id: alias/aws/s3
+              Type: KMS
+          Region: ap-northeast-2
       Name: !Ref PipelineName
       RoleArn: !GetAtt ServiceRole.Arn
       Stages:
