@@ -1,0 +1,55 @@
+Resources:
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckEnabled: true                      # `true` or `false`. If the target type is lambda, health checks are disabled by default but can be enabled. If the target type is instance, ip, or alb, health checks are always enabled and cannot be disabled.
+      HealthCheckIntervalSeconds: 30                # `30`(default), `5` ~ `30`. If the target group protocol is TCP, TLS, UDP, TCP_UDP, HTTP or HTTPS, the default is `30` seconds. If the target group protocol is GENEVE, the default is `10` seconds. If the target type is lambda, the default is `35` seconds.
+      HealthCheckPath: /                            # a path for health check
+      HealthCheckPort: traffic-port                 # `traffic-port`(default), which is the port on which each target receives traffic from the load balancer.
+      HealthCheckProtocol: HTTP                     # `GENEVE`, `HTTP`, `HTTPS`, `TCP`, `TCP_UDP`, `TLS`, `UDP`
+      HealthCheckTimeoutSeconds: 5                  # `5`(default), `2` ~ `30`. For target groups with a protocol of HTTP, the default is `6` seconds. For target groups with a protocol of TCP, TLS or HTTPS, the default is `10` seconds. For target groups with a protocol of GENEVE, the default is `5` seconds. If the target type is lambda, the default is `30` seconds.
+      HealthyThresholdCount: 5                      # `5`(default), `2` ~ `10`. If the target group protocol is TCP, TCP_UDP, UDP, TLS, HTTP or HTTPS, the default is `5`. For target groups with a protocol of GENEVE, the default is `3`. If the target type is lambda, the default is `5`.
+      UnhealthyThresholdCount: 2                    # `2`(default), `2` ~ `10`. If the target group protocol is TCP, TCP_UDP, UDP, TLS, HTTP or HTTPS, the default is `2`. For target groups with a protocol of GENEVE, the default is `3`. If the target type is lambda, the default is `5`.
+      IpAddressType: ipv4                           # `ipv4`(default) or `ipv6`
+      Matcher:
+        HttpCode: '200'
+      Name: <TARGET_GROUP_NAME>                     # a name for target group
+      Port: <TARGET_GROUP_PORT>                     # (INTEGER) a port number for target group
+      Protocol: HTTP                                # `GENEVE`, `HTTP`, `HTTPS`, `TCP`, `TCP_UDP`, `TLS`, `UDP`
+      ProtocolVersion: HTTP1                        # `HTTP1`, `HTTP2`, `GRPC`
+      TargetType: <TARGET_TYPE>                     # `instance`(default), `ip`, `lambda` or `alb`
+      VpcId: <VPC_ID>                               # a vpc id for target group
+      Tags:
+        - Key: Name
+          Value: <TARGET_GROUP_NAME>                # a name for target group
+        - Key: project
+          Value: <PROJECT_NAME>                     # a name for this projecet
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '60'                              # `300`(default), `0` ~ `3600`. If the target is a Lambda function, this attribute is not supported.
+        - Key: stickiness.enabled
+          Value: 'false'                            # `false`(default) or `true`
+        # - Key: stickiness.type
+        #   Value: lb_cookie                          # `lb_cookie` or `app_cookie`
+        - Key: load_balancing.cross_zone.enabled
+          Value: use_load_balancer_configuration    # `use_load_balancer_configuration`(default), `true` or `false`
+        - Key: target_group_health.dns_failover.minimum_healthy_targets.count
+          Value: 'off'                              # `off`(default), The possible values are off or an integer from 1 to the maximum number of targets.
+        - Key: target_group_health.dns_failover.minimum_healthy_targets.percentage
+          Value: 'off'                              # `off`(default), The possible values are off or an integer from 1 to 100.
+        - Key: target_group_health.unhealthy_state_routing.minimum_healthy_targets.count
+          Value: '1'                                # `1`(default), The possible values are 1 to the maximum number of targets.
+        - Key: target_group_health.unhealthy_state_routing.minimum_healthy_targets.percentage
+          Value: 'off'                              # `off`(default), The possible values are off or an integer from 1 to 100.
+        - Key: load_balancing.algorithm.type
+          Value: round_robin                        # `round_robin`(default) or `least_outstanding_requests`
+        - Key: slow_start.duration_seconds
+          Value: '0'                                # `0`(disabled, default) or `30` ~ `900`
+        # - Key: stickiness.app_cookie.cookie_name      # use `stickness.type` option.
+        #   Value: <APPLICATION COOKIE NAME>
+        # - Key: stickiness.app_cookie.duration_seconds # use `stickness.type` option.
+        #   Value: '86400'                            # `86400`(default) or `1`(1 second) ~ `604800`(1 week)
+        # - Key: stickiness.lb_cookie.duration_seconds  # use `stickness.type` option.
+        #   Value: '86400'                            # `86400`(default) or `1`(1 second) ~ `604800`(1 week)
+        # - Key: lambda.multi_value_headers.enabled     # use lambda function as the target.
+        #   Value: false                              # `false`(default) or `true`

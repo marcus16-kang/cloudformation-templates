@@ -1,0 +1,157 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ### Stack Configuration
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this stack's project."
+  
+  ### Bucket Configuration
+  AccessLogBucketName:
+    Type: String
+    Description: "[REQUIRED] The name of alb access log bucket."
+  
+  AccessLogPrefix:
+    Type: String
+    Description: "[optional] The prefix of alb access log. It cannot start or end with `/`."
+    Default: ""
+    AllowedPattern: ^(?!\/).*(?<!\/)$
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+      
+      - Label:
+          default: Bucket Configuration
+        Parameters:
+          - AccessLogBucketName
+          - AccessLogPrefix
+
+Mappings:
+  AccessLogAccountId:
+    us-east-1:
+      accountid: "127311923021"
+    us-east-2:
+      accountid: "033677994240"
+    us-west-1:
+      accountid: "027434742980"
+    us-west-2:
+      accountid: "797873946194"
+    af-south-1:
+      accountid: "098369216593"
+    ap-east-1:
+      accountid: "754344448648"
+    ap-southeast-3:
+      accountid: "589379963580"
+    ap-south-1:
+      accountid: "718504428378"
+    ap-northeast-3:
+      accountid: "383597477331"
+    ap-northeast-2:
+      accountid: "600734575887"
+    ap-southeast-1:
+      accountid: "114774131450"
+    ap-southeast-2:
+      accountid: "783225319266"
+    ap-northeast-1:
+      accountid: "582318560864"
+    ca-central-1:
+      accountid: "985666609251"
+    eu-central-1:
+      accountid: "054676820928"
+    eu-west-1:
+      accountid: "156460612806"
+    eu-west-2:
+      accountid: "652711504416"
+    eu-south-1:
+      accountid: "635631232127"
+    eu-west-3:
+      accountid: "009996457667"
+    eu-north-1:
+      accountid: "897822967062"
+    me-south-1:
+      accountid: "076674570225"
+    sa-east-1:
+      accountid: "507241528517"
+
+Conditions:
+  UseAccessLogPrefix: !Not [!Equals [!Ref AccessLogPrefix, ""]]
+
+Resources:
+  AccessLogBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketName: !Ref AccessLogBucketName
+      IntelligentTieringConfigurations:
+        - Id: intelligence-tiering
+          Status: Enabled
+          Tierings:
+            - AccessTier: ARCHIVE_ACCESS
+              Days: 90
+            - AccessTier: DEEP_ARCHIVE_ACCESS 
+              Days: 180
+      LifecycleConfiguration:
+        Rules:
+          - Id: intelligence-tiering
+            NoncurrentVersionTransitions:
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 30
+              - StorageClass: ONEZONE_IA
+                TransitionInDays: 90
+              - StorageClass: GLACIER
+                TransitionInDays: 180
+              - StorageClass: DEEP_ARCHIVE
+                TransitionInDays: 360
+            Status: Enabled
+            Transitions:
+              - StorageClass: INTELLIGENT_TIERING
+                TransitionInDays: 0
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+      VersioningConfiguration:
+        Status: Enabled
+  
+  AccessLogBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref AccessLogBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub
+                - arn:aws:iam::${account_id}:root
+                - account_id: !FindInMap [ AccessLogAccountId, !Ref "AWS::Region", accountid ]
+            Action: s3:PutObject
+            Resource: !Sub
+              - "arn:aws:s3:::${bucket_name}/${prefix}AWSLogs/${account_id}/*"
+              - bucket_name: !Ref AccessLogBucket
+                prefix: !If
+                  - UseAccessLogPrefix
+                  - !Sub "${AccessLogPrefix}/"
+                  - ""
+                account_id: !Ref AWS::AccountId
+
+Outputs:
+  BucketName:
+    Value: !Ref AccessLogBucket
