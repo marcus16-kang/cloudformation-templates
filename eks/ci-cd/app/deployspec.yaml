@@ -1,0 +1,26 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - echo Install Started on `date`
+      - if [[ $(arch) == "x86_64" ]]; then ARCH=amd64; else ARCH=arm64; fi
+      - curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.23.7/2022-06-29/bin/linux/$ARCH/kubectl
+      - install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      - install -o root -g root -m 0755 kubectl /usr/bin/kubectl
+      - kubectl version --short --client
+      - rm kubectl
+  
+  pre_build:
+    commands:
+      - echo Pre Build Started on `date`
+      - aws eks update-kubeconfig --name $EKS_CLUSTER_NAME
+  
+  build:
+    commands:
+      - echo Build Started on `date`
+      - kubectl set image deployment/$K8S_DEPLOYMENT $K8S_CONTAINER=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG --record -n $K8S_NAMESPACE
+  
+  post_build:
+    commands:
+      - echo Pre Build Started on `date`

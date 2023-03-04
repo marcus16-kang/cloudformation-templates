@@ -1,0 +1,186 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: "AWS CodeCommit Stack for EKS Rollout CI/CD."
+
+Parameters:
+  # Stack Configuration
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
+
+  # CodeCommit Configuration - General
+  RepositoryName:
+    Type: String
+    Description: "[REQUIRED] The name of CodeCommit repository."
+  
+  # CodeCommit Configuration - Notification
+  EnableNotification:
+    Type: String
+    Description: "Enable of disable CodeCommit's event notification."
+    AllowedValues:
+      - "enable"
+      - "disable"
+    Default: "enable"
+
+  NotificationTopicName:
+    Type: String
+    Description: "[optional] The name of SNS topic for CodeCommit event notification"
+    Default: ""
+  
+  NotificationTopicEncryptionKey:
+    Type: String
+    Description: "[optional] The key ID, ARN, alias name, or arn of SNS topic encryption."
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+
+      - Label:
+          default: CodeCommit Configuration - General
+        Parameters:
+          - RepositoryName
+      
+      - Label:
+          default: CodeCommit Configuration - Notification
+        Parameters:
+          - EnableNotification
+          - NotificationTopicName
+          - NotificationTopicEncryptionKey
+
+Conditions:
+  # CodeCommit - Notification
+  IsEnableNotification: !Equals [!Ref EnableNotification, "enable"]
+  UseNotificationTopicName: !Not [!Equals [!Ref NotificationTopicName, ""]]
+  UseNotificationTopicEncryptionKey: !Not [!Equals [!Ref NotificationTopicEncryptionKey, ""]]
+
+Resources:
+  Repository:
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryName: !Ref RepositoryName
+      RepositoryDescription: !Ref RepositoryName
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+      # Triggers:
+      #   - Branches:
+      #       - "BRANCH_NAME"
+      #       - "BRANCH_NAME_2"
+      #     CustomData: MORE_CUSTOM_DATA
+      #     DestinationArn: arn:aws:sns:us-east-1:123456789012:MyTopic  # SNS arn or Lambda function arn
+      #     Events:
+      #       - all                                     # `all`, `updateReference`, `createReference`, `deleteReference`
+      #     Name: "TRIGGER_NAME"
+  
+  Topic:
+    Type: AWS::SNS::Topic
+    Condition: IsEnableNotification
+    Properties:
+      DisplayName: !If
+        - UseNotificationTopicName
+        - !Ref NotificationTopicName
+        - !Sub ${RepositoryName}-event-topic
+      FifoTopic: false
+      KmsMasterKeyId: !If
+        - UseNotificationTopicEncryptionKey
+        - !Ref NotificationTopicEncryptionKey
+        - !Ref AWS::NoValue
+      SignatureVersion: 1
+      # Subscription:
+      #   - Endpoint: 
+      #     Protocol: 
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+      TopicName: !If
+        - UseNotificationTopicName
+        - !Ref NotificationTopicName
+        - !Sub ${RepositoryName}-event-topic
+      TracingConfig: Active
+  
+  TopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Condition: IsEnableNotification
+    Properties:
+      PolicyDocument:
+        Version: "2008-10-17"
+        Id: __default_policy_ID
+        Statement:
+        - Sid: __default_statement_ID
+          Effect: Allow
+          Principal:
+            AWS: "*"
+          Action:
+          - SNS:GetTopicAttributes
+          - SNS:SetTopicAttributes
+          - SNS:AddPermission
+          - SNS:RemovePermission
+          - SNS:DeleteTopic
+          - SNS:Subscribe
+          - SNS:ListSubscriptionsByTopic
+          - SNS:Publish
+          Resource: !Ref Topic
+          Condition:
+            StringEquals:
+              AWS:SourceOwner: !Ref AWS::AccountId
+        - Sid: AWSCodeStarNotifications_publish
+          Effect: Allow
+          Principal:
+            Service:
+            - codestar-notifications.amazonaws.com
+          Action: SNS:Publish
+          Resource: !Ref Topic
+      Topics:
+        - !Ref Topic
+  
+  NotificationRule:
+    Type: AWS::CodeStarNotifications::NotificationRule
+    Condition: IsEnableNotification
+    DependsOn: TopicPolicy
+    Properties:
+      DetailType: FULL
+      EventTypeIds:
+        - codecommit-repository-comments-on-commits
+        - codecommit-repository-comments-on-pull-requests
+        - codecommit-repository-approvals-status-changed
+        - codecommit-repository-approvals-rule-override
+        - codecommit-repository-pull-request-created
+        - codecommit-repository-pull-request-source-updated
+        - codecommit-repository-pull-request-status-changed
+        - codecommit-repository-pull-request-merged
+        - codecommit-repository-branches-and-tags-created
+        - codecommit-repository-branches-and-tags-deleted
+        - codecommit-repository-branches-and-tags-updated
+      Name: !Sub ${RepositoryName}-event-notification-rule
+      Resource: !GetAtt Repository.Arn
+      Status: ENABLED
+      Tags:
+        project: !Ref ProjectName
+      Targets:
+        - TargetAddress: !Ref Topic
+          TargetType: SNS
+
+Outputs:
+  RepositoryId:
+    Value: !Ref Repository
+    Export:
+      Name: !Sub ${AWS::StackName}-RepositoryId
+  
+  RepositoryName:
+    Value: !GetAtt Repository.Name
+    Export:
+      Name: !Sub ${AWS::StackName}-RepositoryName
+  
+  RepositoryArn:
+    Value: !GetAtt Repository.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-RepositoryArn
+  
+  RepositoryUrl:
+    Value: !GetAtt Repository.CloneUrlHttp
+    Export:
+      Name: !Sub ${AWS::StackName}-RepositoryUrl

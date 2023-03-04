@@ -1,0 +1,315 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  # Stack Configuration
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
+
+  # Failover Configuration
+  ElastiCacheGlobalDatastoreName:
+    Type: String
+    Description: "[REQUIRED] The name of ElastiCache global datastore."
+  
+  Route53HostesdZoneId:
+    Type: String
+    Description: "[REQUIRED] The id of Route53 Hosted Zone."
+  
+  Route53RecoreTtl:
+    Type: String
+    Description: "[optional] The ttl value of Route53 record."
+    Default: "10"
+  
+  CacheHostname:
+    Type: String
+    Description: "[REQUIRED] The record name of Route53 Hosted Zone(ex. cache.test.lobal)."
+  
+  CachePort:
+    Type: String
+    Description: "[REQUIRED] The port number to access cache clusters."
+    Default: "6379"
+  
+  # Function Configuration - General
+  RoleName:
+    Type: String
+    Description: "[REQUIRED] The name of function's IAM role."
+  
+  FunctionName:
+    Type: String
+    Description: "[REQUIRED] The name of Lambda function."
+  
+  LayerVersionArn:
+    Type: String
+    Description: "[REQUIRED] The arn of Lambda layer with version."
+  
+  # Function Configuration - VPC
+  SecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: "[REQUIRED] The ID of security group for Lambda function."
+  
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: "[REQUIRED] The IDs of subnet for Lambda function."
+
+  # Event Configuration
+  EventName:
+    Type: String
+    Description: "[REQUIRED] The name of EventBridge rule."
+  
+  EventInterval:
+    Type: String
+    Description: "[REQUIRED] The number of interval time(minutes) to trigger EventBridge rule."
+    Default: "5"
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+      
+      - Label:
+          default: Failover Configuration
+        Parameters:
+          - ElastiCacheGlobalDatastoreName
+          - Route53HostesdZoneId
+          - Route53RecoreTtl
+          - CacheHostname
+          - CachePort
+      
+      - Label:
+          default: Function Configuration - General
+        Parameters:
+          - RoleName
+          - FunctionName
+          - LayerVersionArn
+      
+      - Label:
+          default: Function Configuration - VPC
+        Parameters:
+          - SecurityGroupId
+          - Subnets
+      
+      - Label:
+          default: Event Configuration
+        Parameters:
+          - EventName
+          - EventInterval
+
+Resources:
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      Policies:
+        - PolicyName: LambdaBasicExecutionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${FunctionName}:*"
+        - PolicyName: LambdaVPCAccessExecutionPolicsy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DeleteNetworkInterface
+                  - ec2:AssignPrivateIpAddresses
+                  - ec2:UnassignPrivateIpAddresses
+                Resource: "*"
+        - PolicyName: ElastiCacheReadOnlyPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - elasticache:DescribeReplicationGroups
+                  - elasticache:DescribeGlobalReplicationGroups
+                Resource:
+                  - !Sub "arn:aws:elasticache::${AWS::AccountId}:globalreplicationgroup:${ElastiCacheGlobalDatastoreName}"
+                  - !Sub "arn:aws:elasticache:*:${AWS::AccountId}:replicationgroup:*"
+        - PolicyName: Route53ChangePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - route53:ChangeResourceRecordSets
+                Resource:
+                  - !Sub "arn:aws:route53:::hostedzone/${Route53HostesdZoneId}"
+      RoleName: !Ref RoleName
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+  
+  Function:
+    Type: AWS::Lambda::Function
+    Properties:
+      Architectures:
+        - arm64
+      Code:
+        ZipFile: |
+          import os
+          import redis
+          import boto3
+          from datetime import datetime
+
+          def get_primary_cluster(global_datastore_name):
+              try:
+                  client = boto3.client('elasticache')
+                  response = client.describe_global_replication_groups(
+                      GlobalReplicationGroupId=global_datastore_name,
+                      ShowMemberInfo=True
+                  )
+                  members = response['GlobalReplicationGroups'][0]['Members']
+                  primary_cluster = [item for item in members if item['Role'] == 'PRIMARY'][0]
+                  
+                  return primary_cluster
+                  
+              except Exception as e:
+                  print(e.__str__())
+
+          def get_primary_cluster_endpoint(cluster_name, region):
+              try:
+                  client = boto3.session.Session(region_name=region).client('elasticache')
+                  response = client.describe_replication_groups(
+                      ReplicationGroupId=cluster_name
+                  )
+                  endpoint = response['ReplicationGroups'][0]['NodeGroups'][0]['PrimaryEndpoint']['Address']
+                  
+                  return endpoint
+              
+              except Exception as e:
+                  print(e.__str_())
+
+          def change_route53_record_set(cache_hostname, hosted_zone_id, endpoint, ttl=10):
+              client = boto3.client('route53')
+
+              client.change_resource_record_sets(
+                  HostedZoneId=hosted_zone_id,
+                  ChangeBatch={
+                      'Comment': f'Cache failover at {str(datetime.now())}',
+                      'Changes': [
+                          {
+                              'Action': 'UPSERT',
+                              'ResourceRecordSet': {
+                                  'Name': cache_hostname,
+                                  'Type': 'CNAME',
+                                  'TTL': ttl,
+                                  'ResourceRecords': [
+                                      {
+                                          'Value': endpoint
+                                      }
+                                  ]
+                              }
+                          }
+                      ]
+                  }
+              )
+              
+
+          def lambda_handler(event, context):
+              global_datastore_name = os.getenv('ELASTICACHE_GLOBAL_DATASTORE_NAME', None)
+              hosted_zone_id = os.getenv('ROUTE53_HOSTED_ZONE_ID', None)
+              ttl = int(os.getenv('ROUTE53_TTL', '10'))
+              cache_hostname = os.getenv('CACHE_HOSTNAME', None)
+              cache_port = int(os.getenv('CACHE_PORT', '6379'))
+
+              if global_datastore_name is None:
+                  print('Please set the environment variable "ELASTICACHE_GLOBAL_DATASTORE_NAME".')
+              
+              if hosted_zone_id is None:
+                  print('Please set the environment variable "ROUTE53_HOSTED_ZONE_ID".')
+              
+              if cache_hostname is None:
+                  print('Please set the environment variable "CACHE_HOSTNAME".')
+              
+              if global_datastore_name is not None and hosted_zone_id is not None and cache_hostname is not None:
+                  try:
+                      r = redis.Redis(cache_hostname, port=cache_port, socket_connect_timeout=5)
+                      
+                      r.set(name='ping', value='pong')
+                  
+                  except redis.exceptions.TimeoutError:
+                      print('timeout')
+                      
+                      primary_cluster = get_primary_cluster(global_datastore_name)
+                      endpoint = get_primary_cluster_endpoint(primary_cluster['ReplicationGroupId'], primary_cluster['ReplicationGroupRegion'])
+                      change_route53_record_set(cache_hostname, hosted_zone_id, endpoint, ttl)
+                  
+                  except redis.exceptions.ReadOnlyError:
+                      print('readonly')
+                      
+                      primary_cluster = get_primary_cluster(global_datastore_name)
+                      endpoint = get_primary_cluster_endpoint(primary_cluster['ReplicationGroupId'], primary_cluster['ReplicationGroupRegion'])
+                      change_route53_record_set(cache_hostname, hosted_zone_id, endpoint, ttl)
+              
+              else:
+                  return
+      Description: The function for ElastiCache Global Datastore failover.
+      Environment:
+        Variables:
+          ELASTICACHE_GLOBAL_DATASTORE_NAME: !Ref ElastiCacheGlobalDatastoreName
+          ROUTE53_HOSTED_ZONE_ID: !Ref Route53HostesdZoneId
+          ROUTE53_TTL: !Ref Route53RecoreTtl
+          CACHE_HOSTNAME: !Ref CacheHostname
+          CACHE_PORT: !Ref CachePort
+      FunctionName: !Ref FunctionName
+      Handler: index.lambda_handler
+      PackageType: Zip
+      Layers:
+        - !Ref LayerVersionArn
+      Role: !GetAtt Role.Arn
+      Runtime: python3.9
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+      Timeout: 10
+      TracingConfig:
+        Mode: Active
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref SecurityGroupId
+        SubnetIds: !Ref Subnets
+  
+  EventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: The event rule for Aurora Global Database failover.
+      EventBusName: !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/default"
+      Name: !Ref EventName
+      ScheduleExpression: !Sub "cron(*/${EventInterval} * * * ? *)"
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt Function.Arn
+          Id: !Ref Function
+
+  FunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref Function
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt EventRule.Arn

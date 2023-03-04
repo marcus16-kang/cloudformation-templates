@@ -1,0 +1,38 @@
+Resources:
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - <SERVICE>.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Description: <DESCRIPTION>
+      ManagedPolicyArns:
+        - <MANAGED_POLICY_ARN>
+        - <MANAGED_POLICY_ARN>
+      MaxSessionDuration: 3600
+      Path: /
+      Policies:
+        - PolicyName: <INLINE_POLICY_NAME>
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: IamListAccess
+                Effect: Allow
+                Action:
+                  - <POLICY_ACTION>
+                  - "iam:ListRoles"
+                  - "iam:ListUsers"
+                Resource:
+                  - <POLICY_RESOURCE>
+                  - "resource1"
+                  - "resource2"
+      RoleName: <ROLE_NAME>
+      Tags:
+        - Key: <KEY1>
+          Value: <VALUE1>

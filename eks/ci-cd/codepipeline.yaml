@@ -1,0 +1,486 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  # Stack Configuration
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
+
+  # CodeCommit Configuration
+  CodeCommitStackName:
+    Type: String
+    Description: "[REQUIRED] The name of CodeCommit stack."
+    Default: ""
+  
+  CodeCommitBranchName:
+    Type: String
+    Description: "[REQUIRED] The name of CodeCommit branch name for trigger pipeline."
+    Default: "main"
+  
+  # CodeBuild (Build Image) Configuration
+  CodeBuildStackName:
+    Type: String
+    Description: "[REQUIRED] The name of CodeBuild (build image) stack."
+    Default: ""
+
+  # CodeBuild (Deploy Image) Configuration
+  CodeBuildDeployStackName:
+    Type: String
+    Description: "[REQUIRED] The name of CodeBuild (deploy image) stack."
+    Default: ""
+
+  # CodePipeline Configuration - Pipeline
+  PipelineName:
+    Type: String
+    Description: "[REQUIRED] the name of CodePipeline pipeline."
+  
+  ServiceRoleName:
+    Type: String
+    Description: "[REQUIRED] The name of CodePipeline service IAM role."
+
+  # CodePipeline Configuration - Artifact Bucket
+  ArtifactBucketName:
+    Type: String
+    Description: "[REQUIRED] The name of artifact S3 bucket."
+  
+  ArtifactEncryptionKeyId:
+    Type: String
+    Description: "[optional] The key ARN, id, alias ARN, or name to encrypt artifact S3 bucket. (Default is alias/aws/s3)"
+    Default: "alias/aws/s3"
+  
+  ArtifactLoggingDestinationBucketName:
+    Type: String
+    Description: "[optional] The bucket name of artifact S3 bucket logging destination."
+    Default: ""
+  
+  ArtifactLoggingDestinationPrefix:
+    Type: String
+    Description: "[optional] The log prefix of artifact S3 bucket logging."
+    Default: ""
+  
+  # CodePipeline Configuration - EventBridge
+  EventBridgeRoleName:
+    Type: String
+    Description: "[optional] The name of EventBridge IAM role."
+    Default: ""
+  
+  EventBridgeRuleName:
+    Type: String
+    Description: "[optional] The name of EventBridge rule name."
+    Default: ""
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+    
+      - Label:
+          default: CodeCommit Configuration
+        Parameters:
+          - CodeCommitStackName
+          - CodeCommitBranchName
+      
+      - Label:
+          default: CodeBuild (Build Image) Configuration
+        Parameters:
+          - CodeBuildStackName
+
+      - Label:
+          default: CodeDeploy (Deploy Image) Configuration
+        Parameters:
+          - CodeBuildDeployStackName
+
+      - Label:
+          default: CodePipeline Configuration - Pipeline
+        Parameters:
+          - PipelineName
+          - ServiceRoleName
+      
+      - Label:
+          default: CodePipeline Configuration - Artifact Bucket
+        Parameters:
+          - ArtifactBucketName
+          - ArtifactEncryptionKeyId
+          - ArtifactLoggingDestinationBucketName
+          - ArtifactLoggingDestinationPrefix
+      
+      - Label:
+          default: CodePipeline Configuration - EventBridge
+        Parameters:
+          - EventBridgeRoleName
+          - EventBridgeRuleName
+
+Conditions:
+  # CodePipeline
+  UseArtifactEncryptionKeyId: !Not [ !Equals [!Ref ArtifactEncryptionKeyId, ""] ]
+  UseArtifactLogging: !Not [ !Equals [!Ref ArtifactLoggingDestinationBucketName, ""] ]
+  UseArtifactLoggingPrefix: !Not [ !Equals [!Ref ArtifactLoggingDestinationPrefix, ""] ]
+
+  UseEventBridgeRoleName: !Not [ !Equals [!Ref EventBridgeRoleName, ""] ]
+  UseEventBridgeRuleName: !Not [ !Equals [!Ref EventBridgeRuleName, ""] ]
+
+Resources:
+  # CodePipeline
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !If
+                - UseArtifactEncryptionKeyId
+                - !Ref ArtifactEncryptionKeyId
+                - alias/aws/s3
+      BucketName: !Ref ArtifactBucketName
+      IntelligentTieringConfigurations:
+        - Id: intelligence-tiering
+          Status: Enabled
+          Tierings:
+            - AccessTier: ARCHIVE_ACCESS
+              Days: 90
+            - AccessTier: DEEP_ARCHIVE_ACCESS 
+              Days: 180
+      LifecycleConfiguration:
+        Rules:
+          - Id: intelligence-tiering
+            NoncurrentVersionTransitions:
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 30
+              - StorageClass: ONEZONE_IA
+                TransitionInDays: 90
+              - StorageClass: GLACIER
+                TransitionInDays: 180
+              - StorageClass: DEEP_ARCHIVE
+                TransitionInDays: 360
+            Status: Enabled
+            Transitions:
+              - StorageClass: INTELLIGENT_TIERING
+                TransitionInDays: 0
+      LoggingConfiguration: !If
+        - UseArtifactLogging
+        - DestinationBucketName: !Ref ArtifactLoggingDestinationBucketName
+          LogFilePrefix: !If
+            - UseArtifactLoggingPrefix
+            - !Ref ArtifactLoggingDestinationPrefix
+            - !Ref AWS::NoValue
+        - !Ref AWS::NoValue
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+      VersioningConfiguration:
+        Status: Enabled
+
+  ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Id: SSEAndSSLPolicy
+        Statement:
+        - Sid: DenyUnEncryptedObjectUploads
+          Effect: Deny
+          Principal: "*"
+          Action: s3:PutObject
+          Resource: !Sub arn:aws:s3:::${ArtifactBucket}/*
+          Condition:
+            StringNotEquals:
+              s3:x-amz-server-side-encryption: aws:kms
+        - Sid: DenyInsecureConnections
+          Effect: Deny
+          Principal: "*"
+          Action: s3:*
+          Resource: !Sub arn:aws:s3:::${ArtifactBucket}/*
+          Condition:
+            Bool:
+              aws:SecureTransport: 'false'
+
+  ServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Description: !Ref ServiceRoleName
+      MaxSessionDuration: 3600
+      Path: /service-role/
+      Policies:
+        - PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Resource: "*"
+                Action:
+                  - iam:PassRole
+                Condition:
+                  StringEqualsIfExists:
+                    iam:PassedToService:
+                    - cloudformation.amazonaws.com
+                    - elasticbeanstalk.amazonaws.com
+                    - ec2.amazonaws.com
+                    - ecs-tasks.amazonaws.com
+              - Effect: Allow
+                Resource: "*"
+                Action:
+                  - codecommit:CancelUploadArchive
+                  - codecommit:GetBranch
+                  - codecommit:GetCommit
+                  - codecommit:GetRepository
+                  - codecommit:GetUploadArchiveStatus
+                  - codecommit:UploadArchive
+              - Effect: Allow
+                Resource: "*"
+                Action:
+                  - codedeploy:CreateDeployment
+                  - codedeploy:GetApplication
+                  - codedeploy:GetApplicationRevision
+                  - codedeploy:GetDeployment
+                  - codedeploy:GetDeploymentConfig
+                  - codedeploy:RegisterApplicationRevision
+              - Effect: Allow
+                Resource: "*"
+                Action:
+                  - codestar-connections:UseConnection
+              - Effect: Allow
+                Resource: "*"
+                Action:
+                  - elasticbeanstalk:*
+                  - ec2:*
+                  - elasticloadbalancing:*
+                  - autoscaling:*
+                  - cloudwatch:*
+                  - s3:*
+                  - sns:*
+                  - cloudformation:*
+                  - rds:*
+                  - sqs:*
+                  - ecs:*
+              - Effect: Allow
+                Resource: "*"
+                Action:
+                  - opsworks:CreateDeployment
+                  - opsworks:DescribeApps
+                  - opsworks:DescribeCommands
+                  - opsworks:DescribeDeployments
+                  - opsworks:DescribeInstances
+                  - opsworks:DescribeStacks
+                  - opsworks:UpdateApp
+                  - opsworks:UpdateStack
+              - Effect: Allow
+                Resource: "*"
+                Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:DeleteStack
+                  - cloudformation:DescribeStacks
+                  - cloudformation:UpdateStack
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:SetStackPolicy
+                  - cloudformation:ValidateTemplate
+              - Effect: Allow
+                Resource: "*"
+                Action:
+                  - codebuild:BatchGetBuilds
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuildBatches
+                  - codebuild:StartBuildBatch
+              - Effect: Allow
+                Resource: "*"
+                Action:
+                  - devicefarm:ListProjects
+                  - devicefarm:ListDevicePools
+                  - devicefarm:GetRun
+                  - devicefarm:GetUpload
+                  - devicefarm:CreateUpload
+                  - devicefarm:ScheduleRun
+              - Effect: Allow
+                Resource: "*"
+                Action:
+                  - servicecatalog:ListProvisioningArtifacts
+                  - servicecatalog:CreateProvisioningArtifact
+                  - servicecatalog:DescribeProvisioningArtifact
+                  - servicecatalog:DeleteProvisioningArtifact
+                  - servicecatalog:UpdateProduct
+              - Effect: Allow
+                Resource: "*"
+                Action:
+                  - cloudformation:ValidateTemplate
+              - Effect: Allow
+                Resource: "*"
+                Action:
+                  - ecr:DescribeImages
+              - Effect: Allow
+                Resource: "*"
+                Action:
+                  - states:DescribeExecution
+                  - states:DescribeStateMachine
+                  - states:StartExecution
+              - Effect: Allow
+                Resource: "*"
+                Action:
+                  - appconfig:StartDeployment
+                  - appconfig:StopDeployment
+                  - appconfig:GetDeployment
+          PolicyName: ServiceRolePolicy
+      RoleName: !Ref ServiceRoleName
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      ArtifactStores:
+        - ArtifactStore:
+            Location: !Ref ArtifactBucket
+            Type: S3
+            EncryptionKey:
+              Id: !If
+                - UseArtifactEncryptionKeyId
+                - !Ref ArtifactEncryptionKeyId
+                - alias/aws/s3
+              Type: KMS
+          Region: !Ref AWS::Region
+      Name: !Ref PipelineName
+      RoleArn: !GetAtt ServiceRole.Arn
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeCommit
+                Version: "1"
+              Configuration:
+                BranchName: !Ref CodeCommitBranchName
+                RepositoryName:
+                  Fn::ImportValue:
+                    !Sub ${CodeCommitStackName}-RepositoryName
+                PollForSourceChanges: false
+              OutputArtifacts:
+                - Name: SourceArtifact
+              RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: Build
+              Namespace: BuildVariables
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: "1"
+              Configuration:
+                ProjectName:
+                  Fn::ImportValue:
+                    !Sub ${CodeBuildStackName}-BuildProjectName
+              InputArtifacts:
+                - Name: SourceArtifact
+              RunOrder: 1
+        - Name: Deploy
+          Actions:
+            - Name: Deploy
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: "1"
+              Configuration:
+                ProjectName:
+                  Fn::ImportValue:
+                    !Sub ${CodeBuildDeployStackName}-BuildProjectName
+                EnvironmentVariables: '[{"name":"AWS_ACCOUNT_ID","value":"#{BuildVariables.AWS_ACCOUNT_ID}","type":"PLAINTEXT"},{"name":"AWS_DEFAULT_REGION","value":"#{BuildVariables.AWS_DEFAULT_REGION}","type":"PLAINTEXT"},{"name":"IMAGE_REPO_NAME","value":"#{BuildVariables.IMAGE_REPO_NAME}","type":"PLAINTEXT"},{"name":"IMAGE_TAG","value":"#{BuildVariables.IMAGE_TAG}","type":"PLAINTEXT"}]'
+              InputArtifacts:
+                - Name: SourceArtifact
+              RunOrder: 1
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+  
+  EventBridgeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - events.amazonaws.com
+      Description: !If
+        - UseEventBridgeRoleName
+        - !Ref EventBridgeRoleName
+        - !Sub ${Pipeline}-cwe-role
+      MaxSessionDuration: 3600
+      Path: /service-role/
+      Policies:
+        - PolicyName: start-pipeline-execution
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codepipeline:StartPipelineExecution
+                Resource:
+                  - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${Pipeline}
+      RoleName: !If
+        - UseEventBridgeRoleName
+        - !Ref EventBridgeRoleName
+        - !Sub ${Pipeline}-cwe-role
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+
+  EventBridgeRule:
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: !If
+        - UseEventBridgeRuleName
+        - !Ref EventBridgeRuleName
+        - !Sub ${Pipeline}-cwe-rule
+      Name: !If
+        - UseEventBridgeRuleName
+        - !Ref EventBridgeRuleName
+        - !Sub ${Pipeline}-cwe-rule
+      EventPattern:
+        source:
+          - aws.codecommit
+        detail-type:
+          - CodeCommit Repository State Change
+        resources:
+          - Fn::ImportValue:
+              !Sub ${CodeCommitStackName}-RepositoryArn
+        detail:
+          event:
+            - referenceCreated
+            - referenceUpdated
+          referenceType:
+            - branch
+          referenceName:
+            - !Ref CodeCommitBranchName
+      Targets:
+        - Arn: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${Pipeline}
+          RoleArn: !GetAtt EventBridgeRole.Arn
+          Id: !Ref Pipeline

@@ -1,0 +1,289 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: "AWS CodeBuild (Deploy Image) Stack for EKS Rollout CI/CD." 
+
+Parameters:
+  # Stack Configuration
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
+  
+  # CodeCommit Configuration
+  CodeCommitStackName:
+    Type: String
+    Description: "[REQUIRED] The name of CodeCommit stack."
+
+  # CodeBuild Configuration - General
+  BuildProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of CodeBuild project."
+  
+  ServiceRoleName:
+    Type: String
+    Description: "[REQUIRED] The name of CodeBuild service IAM role."
+  
+  EncryptionKey:
+    Type: String
+    Description: "[optional] The ARN or Alias of KMS key for encrypt artifacts. (Default is alias/aws/s3.)"
+    Default: "alias/aws/s3"
+
+  ComputeType:
+    Type: String
+    Description: "[optional] The type of CodeBuild compute type. (The ARM container DOES NOT SUPPORT 'BUILD_GENERAL1_MEDIUM'.)"
+    AllowedValues:
+      - "BUILD_GENERAL1_SMALL"
+      - "BUILD_GENERAL1_MEDIUM"
+      - "BUILD_GENERAL1_LARGE"
+    Default: "BUILD_GENERAL1_SMALL"
+  
+  Image:
+    Type: String
+    Description: "[REQUIRED] The image tag of CodeBuild image."
+    AllowedValues:
+      - "aws/codebuild/amazonlinux2-x86_64-standard:3.0"
+      - "aws/codebuild/amazonlinux2-x86_64-standard:4.0"
+      - "aws/codebuild/amazonlinux2-aarch64-standard:1.0"
+      - "aws/codebuild/amazonlinux2-aarch64-standard:2.0"
+  
+  ArchitectureType:
+    Type: String
+    Description: "[REQUIRED] The type of CodeBuild architecture type."
+    AllowedValues:
+      - "LINUX_CONTAINER"
+      - "ARM_CONTAINER"
+  
+  DeploySpecFileName:
+    Type: String
+    Description: "[REQUIRED] The name of buildspec file for deploy image."
+    Default: "deployspec.yaml"
+  
+  # CodeBuild Configuration - Artifact
+  ArtifactBucketName:
+    Type: String
+    Description: "[REQUIRED] The name of artifact S3 bucket."
+  
+  ArtifactBranchName:
+    Type: String
+    Description: "[REQUIRED] The name of artifact git branch."
+    Default: "main"
+  
+  # CodeBuild Configuration - VPC
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: "[REQUIRED] The ID of VPC for the CodeBuild."
+  
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: "[REQUIRED] The list of subnets id for the CodeBuild."
+  
+  SecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: "[REQUIRED] The ID of security Group for the CodeBuild."
+
+  # Kubernetes Configuration
+  ClusterName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS cluster."
+  
+  NamespaceName:
+    Type: String
+    Description: "[REQUIRED] The name of Kubernetes Namespace."
+  
+  DeploymentName:
+    Type: String
+    Description: "[REQUIRED] The name of Kubernetes Deployment."
+  
+  ContainerName:
+    Type: String
+    Description: "[REQUIRED] The name of container in Kubernetes Deployment."
+  
+  ImageRepositoryName:
+    Type: String
+    Description: "[REQUIRED] The name of image repository."
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+      
+      - Label:
+          default: CodeCommit Configuration
+        Parameters:
+          - CodeCommitStackName
+      
+      - Label:
+          default: CodeBuild Configuration - General
+        Parameters:
+          - BuildProjectName
+          - ServiceRoleName
+          - EncryptionKey
+          - ComputeType
+          - Image
+          - ArchitectureType
+          - DeploySpecFileName
+      
+      - Label:
+          default: CodeBuild Configuration - Artifact
+        Parameters:
+          - ArtifactBucketName
+          - ArtifactBranchName
+      
+      - Label:
+          default: CodeBuild Configuration - General
+        Parameters:
+          - VpcId
+          - Subnets
+          - SecurityGroupId
+      
+      - Label:
+          default: Kubernetes Configuration
+        Parameters:
+          - ClusterName
+          - NamespaceName
+          - DeploymentName
+          - ContainerName
+          - ImageRepositoryName
+
+Conditions:
+  # CodeBuild
+  UseEncryptionKey: !Not [!Equals [!Ref EncryptionKey, ""]]
+
+Resources:
+  ServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: codebuild.amazonaws.com
+          Action: sts:AssumeRole
+      Description: !Ref ServiceRoleName
+      MaxSessionDuration: 3600
+      Path: /service-role/
+      Policies:
+        - PolicyName: CodeBuildBasePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BuildProjectName}"
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BuildProjectName}:*"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+              - Effect: Allow
+                Resource:
+                  - Fn::ImportValue:
+                      !Sub ${CodeCommitStackName}-RepositoryArn
+                Action:
+                  - "codecommit:GitPull"
+              - Effect: Allow
+                Action:
+                - ec2:CreateNetworkInterface
+                - ec2:DescribeDhcpOptions
+                - ec2:DescribeNetworkInterfaces
+                - ec2:DeleteNetworkInterface
+                - ec2:DescribeSubnets
+                - ec2:DescribeSecurityGroups
+                - ec2:DescribeVpcs
+                - ec2:CreateNetworkInterfacePermission
+                Resource: "*"
+              - Effect: Allow
+                Resource:
+                  - !Sub "arn:aws:s3:::${ArtifactBucketName}*"  # codepipeline bucket
+                Action:
+                  - "s3:PutObject"
+                  - "s3:GetObject"
+                  - "s3:GetObjectVersion"
+                  - "s3:GetBucketAcl"
+                  - "s3:GetBucketLocation"
+              - Effect: Allow
+                Resource:
+                  - !Sub "arn:aws:eks:${AWS::Region}:${AWS::AccountId}:cluster/${ClusterName}"  # codepipeline bucket
+                Action:
+                  - "eks:DescribeCluster"
+      RoleName: !Ref ServiceRoleName
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+
+  BuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: NO_ARTIFACTS
+      BadgeEnabled: true
+      Cache:
+        Type: LOCAL
+        Modes:
+          - "LOCAL_SOURCE_CACHE"
+      Description: !Ref BuildProjectName
+      EncryptionKey: !If
+        - UseEncryptionKey
+        - !Ref EncryptionKey
+        - alias/aws/s3
+      Environment:
+        ComputeType: !Ref ComputeType
+        EnvironmentVariables:
+          - Name: EKS_CLUSTER_NAME
+            Value: !Ref ClusterName
+          - Name: K8S_NAMESPACE
+            Value: !Ref NamespaceName
+          - Name: K8S_DEPLOYMENT
+            Value: !Ref DeploymentName
+          - Name: K8S_CONTAINER
+            Value: !Ref ContainerName
+        Image: !Ref Image
+        ImagePullCredentialsType: CODEBUILD
+        PrivilegedMode: false
+        Type: !Ref ArchitectureType
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+          # GroupName: # If you want to speficy log group, please change codebuild service role policy.
+          # StreamName: 
+      Name: !Ref BuildProjectName
+      QueuedTimeoutInMinutes: 120
+      ServiceRole: !GetAtt ServiceRole.Arn
+      Source:
+        GitCloneDepth: 1
+        GitSubmodulesConfig:
+          FetchSubmodules: true
+        Location:
+          Fn::ImportValue:
+            !Sub ${CodeCommitStackName}-RepositoryName
+        Type: CODECOMMIT
+        BuildSpec: !Ref DeploySpecFileName
+      SourceVersion: !Sub refs/heads/${ArtifactBranchName}
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+      TimeoutInMinutes: 30
+      # Triggers: {}
+      Visibility: PRIVATE
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref SecurityGroupId
+        Subnets: !Ref Subnets
+        VpcId: !Ref VpcId
+  
+Outputs:
+  BuildProjectRoleArn:
+    Value: !GetAtt ServiceRole.Arn
+  
+  BuildProjectName:
+    Value: !Ref BuildProject
+    Export:
+      Name: !Sub ${AWS::StackName}-BuildProjectName
+  
+  BuildProjectArn:
+    Value: !GetAtt BuildProject.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-BuildProjectArn
