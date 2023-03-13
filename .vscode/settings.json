@@ -1,5 +1,7 @@
 {
     "yaml.schemas": {
-        "https://raw.githubusercontent.com/awslabs/goformation/master/schema/cloudformation.schema.json": "file:///c%3A/Project/marcus16-kang/cloudformation-templates/**/*.yaml"
+        "https://raw.githubusercontent.com/awslabs/goformation/master/schema/cloudformation.schema.json": [
+            "file:///c%3A/project/marcus16-kang/cloudformation-templates/**/*.yaml",
+        ]
     }
 }

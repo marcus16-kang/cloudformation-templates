@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ClusterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: "[REQUIRED] The Id of EKS Cluster Security Group."
+  
+  AdditionalClusterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: "[REQUIRED] The Id of EKS Additional Cluster Security Group."
+  
+  GeneralNodegroupSecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: "[REQUIRED] The Id of EKS General Nodegroup Security Group."
+
+Resources:
+  ClusterSecurityGroupIngressAllowsAllMyself:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Cluster Security Group (MySelf) - ALL"
+      GroupId: !Ref ClusterSecurityGroup
+      IpProtocol: "-1"
+      SourceSecurityGroupId: !Ref ClusterSecurityGroup
+  
+  ClusterSecurityGroupEgressAllow443Myself:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      Description: "Cluster Security Group (MySelf) - APIServer"
+      DestinationSecurityGroupId: !Ref ClusterSecurityGroup
+      FromPort: 443
+      GroupId: !Ref ClusterSecurityGroup
+      IpProtocol: tcp
+      ToPort: 443
+  
+  AdditionalClusterSecuritGroupIngressAllow443Myself:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Additional Cluster Security Group (MySelf) - APIServer"
+      FromPort: 443
+      GroupId: !Ref AdditionalClusterSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref AdditionalClusterSecurityGroup
+      ToPort: 443
+    
+  AdditionalClusterSecuritGroupIngressAllow443GeneralNodegroup:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Nodegroup General Security Group - APIServer"
+      FromPort: 443
+      GroupId: !Ref AdditionalClusterSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref GeneralNodegroupSecurityGroup
+      ToPort: 443
+
+  AdditionalClusterSecurityGroupEgressAllows1024to65535GeneralNodegroup:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      Description: "Nodegroup General Security Group - Controllers"
+      DestinationSecurityGroupId: !Ref GeneralNodegroupSecurityGroup
+      FromPort: 1024
+      GroupId: !Ref AdditionalClusterSecurityGroup
+      IpProtocol: tcp
+      ToPort: 65535
+  
+  GeneralNodegroupClusterSecuritGroupIngressAllowsAllMyself:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Nodegroup General Security Group (MySelf) - ALL"
+      GroupId: !Ref GeneralNodegroupSecurityGroup
+      IpProtocol: "-1"
+      SourceSecurityGroupId: !Ref GeneralNodegroupSecurityGroup
+  
+  GeneralNodegroupClusterSecuritGroupIngressAllows1024to65535AdditionalCluster:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Additional Cluster Security Group - Controllers"
+      FromPort: 1024
+      GroupId: !Ref GeneralNodegroupSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref AdditionalClusterSecurityGroup
+      ToPort: 65535
+  
+  GeneralNodegroupClusterSecuritGroupEgressAllowsAllMyself:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      Description: "Nodegroup General Security Group (MySelf) - ALL"
+      DestinationSecurityGroupId: !Ref GeneralNodegroupSecurityGroup
+      GroupId: !Ref GeneralNodegroupSecurityGroup
+      IpProtocol: "-1"
+  
+  GeneralNodegroupClusterSecuritGroupEgressAllow443Internet:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      CidrIp: 0.0.0.0/0
+      Description: "Images & AWS APIs - HTTPS"
+      FromPort: 443
+      GroupId: !Ref GeneralNodegroupSecurityGroup
+      IpProtocol: tcp
+      ToPort: 443
