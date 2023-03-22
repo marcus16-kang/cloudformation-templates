@@ -12,6 +12,34 @@ Parameters:
   GeneralNodegroupSecurityGroup:
     Type: AWS::EC2::SecurityGroup::Id
     Description: "[REQUIRED] The Id of EKS General Nodegroup Security Group."
+  
+  BastionInstanceSecurityGroup:
+    Type: String
+    Description: "[optional] The Id of Bastion Instance Security Group."
+  
+  VpcEndpointSecurityGroup:
+    Type: String
+    Description: "[optional] The Id of VPC Endpoint Security Group."
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Required Parameters
+        Parameters:
+          - ClusterSecurityGroup
+          - AdditionalClusterSecurityGroup
+          - GeneralNodegroupSecurityGroup
+      
+      - Label:
+          default: Optional Parameters
+        Parameters:
+          - BastionInstanceSecurityGroup
+          - VpcEndpointSecurityGroup
+
+Conditions:
+  UseBastionInstanceSecurityGroup: !Not [!Equals [!Ref BastionInstanceSecurityGroup, ""]]
+  UseVpcEndpointSecurityGroup: !Not [!Equals [!Ref VpcEndpointSecurityGroup, ""]]
 
 Resources:
   ClusterSecurityGroupIngressAllowsAllMyself:
@@ -50,6 +78,17 @@ Resources:
       GroupId: !Ref AdditionalClusterSecurityGroup
       IpProtocol: tcp
       SourceSecurityGroupId: !Ref GeneralNodegroupSecurityGroup
+      ToPort: 443
+
+  AdditionalClusterSecurityGroupIngressAllow443BastionInstance:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: UseBastionInstanceSecurityGroup
+    Properties:
+      Description: "Bastion Instance Security Group - APIServer"
+      FromPort: 443
+      GroupId: !Ref AdditionalClusterSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref BastionInstanceSecurityGroup
       ToPort: 443
 
   AdditionalClusterSecurityGroupEgressAllows1024to65535GeneralNodegroup:
@@ -96,4 +135,15 @@ Resources:
       FromPort: 443
       GroupId: !Ref GeneralNodegroupSecurityGroup
       IpProtocol: tcp
+      ToPort: 443
+  
+  VpcEndpointSecurityGroupIngressAllow443GeneralNodegroup:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: UseVpcEndpointSecurityGroup
+    Properties:
+      Description: "Nodegroup General Security Group - AWS APIs"
+      FromPort: 443
+      GroupId: !Ref VpcEndpointSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref GeneralNodegroupSecurityGroup
       ToPort: 443

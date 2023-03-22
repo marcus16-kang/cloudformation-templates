@@ -16,7 +16,7 @@ Parameters:
   # CodeCommit Configuration - Notification
   EnableNotification:
     Type: String
-    Description: "Enable of disable CodeCommit's event notification."
+    Description: "[optional] Enable of disable CodeCommit's event notification."
     AllowedValues:
       - "enable"
       - "disable"
@@ -24,7 +24,7 @@ Parameters:
 
   NotificationTopicName:
     Type: String
-    Description: "[optional] The name of SNS topic for CodeCommit event notification"
+    Description: "[optional] The name of SNS topic for CodeCommit event notification."
     Default: ""
   
   NotificationTopicEncryptionKey:

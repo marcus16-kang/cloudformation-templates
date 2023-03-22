@@ -193,6 +193,7 @@ Resources:
     Type: AWS::EC2::SecurityGroupEgress
     Condition: UseTargetSecurityGroup
     Properties:
+      Description: "App"
       DestinationSecurityGroupId: !Ref TargetSecurityGroupId
       GroupId: !GetAtt SecurityGroup.GroupId
       IpProtocol: tcp
@@ -203,6 +204,7 @@ Resources:
     Type: AWS::EC2::SecurityGroupIngress
     Condition: UseTargetSecurityGroup
     Properties:
+      Description: "ELB"
       FromPort: !Ref TargetPort
       ToPort: !Ref TargetPort
       GroupId: !Ref TargetSecurityGroupId

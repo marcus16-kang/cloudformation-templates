@@ -1,0 +1,160 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ### Stack Configuration
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this stack's project."
+
+  ### VPN Configuration - General
+  ClientVpnName:
+    Type: String
+    Description: "[REQUIRED] The name of client vpn."
+  
+  ### VPN Configuration - Certificate
+  ServerCertificateArn:
+    Type: String
+    Description: "[REQUIRED] The arn of server certification in ACM."
+    AllowedPattern: ^arn:aws:acm:\w+(?:-\w+)+:\d{12}:certificate\/[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+$
+  
+  ClientCertificateArn:
+    Type: String
+    Description: "[REQUIRED] The arn of client certification in ACM."
+    AllowedPattern: ^arn:aws:acm:\w+(?:-\w+)+:\d{12}:certificate\/[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+$
+  
+  ### VPN Configuration - Client
+  ClientCidrBlock:
+    Type: String
+    Description: "[REQUIRED] The IP address range, in CIDR notation, from which client IP addresses are allocated. (/12 ~ /22)"
+  
+  SecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: "[REQUIRED] The id of security group."
+  
+  TaragetNetworkCidr:
+    Type: String
+    Description: "[REQUIRED] The CIDR of the network for which access is being authorized."
+    Default: "0.0.0.0/0"
+  
+  ### VPN Configuration - VPC
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: "[REQUIRED] The id of VPC."
+  
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: "[REQUIRED] The id list of subnets."
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+      
+      - Label:
+          default: VPN Configuration - General
+        Parameters:
+          - ClientVpnName
+      
+      - Label:
+          default: VPN Configuration - Certificate
+        Parameters:
+          - ServerCertificateArn
+          - ClientCertificateArn
+      
+      - Label:
+          default: VPN Configuration - Client
+        Parameters:
+          - ClientCidrBlock
+          - SecurityGroupId
+          - TaragetNetworkCidr
+      
+      - Label:
+          default: VPN Configuration - VPC
+        Parameters:
+          - VpcId
+          - SubnetIds
+
+Resources:
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      # KmsKeyId: 
+      LogGroupName: !Sub "/aws/vpn/${ClientVpnName}"
+      RetentionInDays: 90
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+  
+  LogStream:
+    Type: AWS::Logs::LogStream
+    Properties:
+      LogGroupName: !Ref LogGroup
+      LogStreamName: !Ref ClientVpnName
+
+  ClientVpnEndpoint:
+    Type: AWS::EC2::ClientVpnEndpoint
+    Properties:
+      AuthenticationOptions:
+        - Type: certificate-authentication
+          MutualAuthentication:
+            ClientRootCertificateChainArn: !Ref ClientCertificateArn
+      ClientCidrBlock: !Ref ClientCidrBlock
+      ClientConnectOptions:
+        Enabled: false
+      ClientLoginBannerOptions:
+        Enabled: true
+        BannerText: AWS CLIENT VPN
+      ConnectionLogOptions:
+        Enabled: true
+        CloudwatchLogGroup: !Ref LogGroup
+        CloudwatchLogStream: !Ref LogStream
+      Description: "aws client vpn"
+      SecurityGroupIds:
+        - !Ref SecurityGroupId
+      SelfServicePortal: enabled  # `enabled`(default) or `disabled`
+      ServerCertificateArn: !Ref ServerCertificateArn
+      SessionTimeoutHours: 8
+      SplitTunnel: true
+      TagSpecifications:
+        - ResourceType: client-vpn-endpoint
+          Tags:
+            - Key: project
+              Value: ProjectName
+            - Key: Name
+              Value: !Ref ClientVpnName
+      TransportProtocol: udp
+      VpcId: !Ref VpcId
+      VpnPort: 443
+  
+  ClientVpnTargetNetworkAssociationSubnet0:
+    Type: AWS::EC2::ClientVpnTargetNetworkAssociation
+    Properties:
+      ClientVpnEndpointId: !Ref ClientVpnEndpoint
+      SubnetId: !Select ["0", !Ref SubnetIds]
+  
+  ClientVpnTargetNetworkAssociationSubnet1:
+    Type: AWS::EC2::ClientVpnTargetNetworkAssociation
+    Properties:
+      ClientVpnEndpointId: !Ref ClientVpnEndpoint
+      SubnetId: !Select ["1", !Ref SubnetIds]
+  
+  # ClientVpnTargetNetworkAssociationSubnet2:
+  #   Type: AWS::EC2::ClientVpnTargetNetworkAssociation
+  #   Properties:
+  #     ClientVpnEndpointId: !Ref ClientVpnEndpoint
+  #     SubnetId: !Select ["2", !Ref SubnetIds]
+
+  ClientVpnAuthorizationRule:
+    Type: AWS::EC2::ClientVpnAuthorizationRule
+    Properties:
+      AuthorizeAllGroups: true
+      ClientVpnEndpointId: !Ref ClientVpnEndpoint
+      Description: "Client Vpn Authorization Rule"
+      TargetNetworkCidr: !Ref TaragetNetworkCidr
+
+Outputs:
+  ClientVpnEndpointId:
+    Value: !Ref ClientVpnEndpoint
