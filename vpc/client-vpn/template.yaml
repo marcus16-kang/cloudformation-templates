@@ -34,7 +34,7 @@ Parameters:
   TaragetNetworkCidr:
     Type: String
     Description: "[REQUIRED] The CIDR of the network for which access is being authorized."
-    Default: "0.0.0.0/0"
+    Default: "10.0.0.0/16"
   
   ### VPN Configuration - VPC
   VpcId:
