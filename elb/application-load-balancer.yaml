@@ -35,9 +35,9 @@ Parameters:
       - dualstack
     Default: ipv4
   
-  SecurityGroupName:
+  SecurityGroupId:
     Type: String
-    Description: "[REQUIRED] The name of alb security group."
+    Description: "[REQUIRED] The id of alb security group."
   
   ListenerPathPattern:
     Type: List<String>
@@ -58,8 +58,8 @@ Parameters:
       - alb
   
   TargetSecurityGroupId:
-    Type: AWS::EC2::SecurityGroup::Id
-    Description: "[optional] The id of alb target gruop's security group."
+    Type: String
+    Description: "[optional] The id of alb target group's security group."
   
   TargetPort:
     Type: Number
@@ -99,7 +99,7 @@ Metadata:
           - Subnets
           - Scheme
           - IpAddressType
-          - SecurityGroupName
+          - SecurityGroupId
           - ListenerPathPattern
       
       - Label:
@@ -172,24 +172,34 @@ Conditions:
   UseAccessLogPrefix: !Not [!Equals [!Ref AccessLogPrefix, ""]]
 
 Resources:
-  SecurityGroup:
-    Type: AWS::EC2::SecurityGroup
+  # SecurityGroup:
+  #   Type: AWS::EC2::SecurityGroup
+  #   Properties:
+  #     GroupDescription: !Ref SecurityGroupId
+  #     GroupName: !Ref SecurityGroupId
+  #     SecurityGroupIngress:
+  #       - CidrIp: 0.0.0.0/0
+  #         FromPort: 80
+  #         IpProtocol: tcp
+  #         ToPort: 80
+  #     VpcId: !Ref VpcId
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Ref SecurityGroupId
+  #       - Key: project
+  #         Value: !Ref ProjectName
+
+  ElbSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
     Properties:
-      GroupDescription: !Ref SecurityGroupName
-      GroupName: !Ref SecurityGroupName
-      SecurityGroupIngress:
-        - CidrIp: 0.0.0.0/0
-          FromPort: 80
-          IpProtocol: tcp
-          ToPort: 80
-      VpcId: !Ref VpcId
-      Tags:
-        - Key: Name
-          Value: !Ref SecurityGroupName
-        - Key: project
-          Value: !Ref ProjectName
+      CidrIp: 0.0.0.0/0
+      Description: HTTP - Internet
+      FromPort: 80
+      GroupId: !GetAtt SecurityGroup.GroupId
+      IpProtocol: tcp
+      ToPort: 80
   
-  SecurityGroupEgress:
+  ElbSecurityGroupEgress:
     Type: AWS::EC2::SecurityGroupEgress
     Condition: UseTargetSecurityGroup
     Properties:
@@ -200,7 +210,7 @@ Resources:
       FromPort: !Ref TargetPort
       ToPort: !Ref TargetPort
   
-  SecurityGroupIngress:
+  TargetSecurityGroupIngress:
     Type: AWS::EC2::SecurityGroupIngress
     Condition: UseTargetSecurityGroup
     Properties:

@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ### Stack Configuration
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this stack's project."
+
+  ### Workspace Configuration - General
+  WorkspaceName:
+    Type: String
+    Description: "[REQUIRED] The name of this APS workspace."
+
+  LogGroupName:
+    Type: String
+    Description: "[REQUIRED] The name of this APS workspace's log group."
+    Default: "/aws/vendedlogs/prometheus"
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+      
+      - Label:
+          default: Workspace Configuration - General
+        Parameters:
+          - WorkspaceName
+          - LogGroupName
+
+Resources:
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      # KmsKeyId: 
+      LogGroupName: !Ref LogGroupName
+      RetentionInDays: 90
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+
+  Workspace:
+    Type: AWS::APS::Workspace
+    Properties:
+      Alias: !Ref WorkspaceName
+      LoggingConfiguration:
+        LogGroupArn: !GetAtt LogGroup.Arn
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+
+Outputs:
+  WorkspaceArn:
+    Value: !Ref Workspace
+  
+  WorkspaceEndpoint:
+    Value: !GetAtt Workspace.PrometheusEndpoint
+
+  WorkspaceId:
+    Value: !GetAtt Workspace.WorkspaceId

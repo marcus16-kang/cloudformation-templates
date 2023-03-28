@@ -3,17 +3,17 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: "AWS CodeBuild Stack for ECS Blue-Green CI/CD."
 
 Parameters:
-  # Stack Configuration
+  ### Stack Configuration
   ProjectName:
     Type: String
     Description: "[REQUIRED] The name of this project."
   
-  # CodeCommit Configuration
+  ### CodeCommit Configuration
   CodeCommitStackName:
     Type: String
     Description: "[REQUIRED] The name of CodeCommit stack."
 
-  # CodeBuild Configuration - General
+  ### CodeBuild Configuration - General
   BuildProjectName:
     Type: String
     Description: "[REQUIRED] The name of CodeBuild project."
@@ -52,7 +52,7 @@ Parameters:
       - "LINUX_CONTAINER"
       - "ARM_CONTAINER"
   
-  # CodeBuild Configuration - Artifact
+  ### CodeBuild Configuration - Artifact
   ArtifactBucketName:
     Type: String
     Description: "[REQUIRED] The name of artifact S3 bucket."
@@ -62,7 +62,7 @@ Parameters:
     Description: "[REQUIRED] The name of artifact git branch."
     Default: "main"
 
-  # CodeBuild Configuration - Container
+  ### CodeBuild Configuration - Container
   ImageRepositoryName:
     Type: String
     Description: "[REQUIRED] The name of image repository."

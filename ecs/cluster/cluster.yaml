@@ -1,11 +1,17 @@
 AWSTemplateFormatVersion: "2010-09-09"
 
 Parameters:
+  ### Stack Configuration
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
+  
+  ### ECS Cluster Configuration - General
   ClusterName:
     Type: String
     Description: "[REQUIRED] The name of ECS cluster."
   
-  ### ECS Container Insights
+  ### ECS Cluster Configuration - Container Insights
   ContainerInsights:
     Type: String
     Description: "[optional] Enable of disable ECS cluster's container insights."
@@ -24,7 +30,7 @@ Parameters:
     Description: "[optional] The name of container insights task execution's IAM role."
     Default: ""
 
-  ### ECS Alarms
+  ### ECS Cluster Configuration - Alarm
   EnableClusterAlarms:
     Type: String
     Description: "[optional] Enable of disable to create ECS cluster's alarms."
@@ -33,10 +39,27 @@ Parameters:
       - "false"
     Default: "true"
 
-  ProjectName:
+  CpuUtilizationAlarmName:
     Type: String
-    Description: "[REQUIRED] The name of this project."
+    Description: "[optional] The name of CpuUtilizationAlarm."
+    Default: ""
 
+  MemoryUtilizationAlarmName:
+    Type: String
+    Description: "[optional] The name of MemoryUtilizationAlarm."
+    Default: ""
+
+  CpuUtilizationThreshold:
+    Type: Number
+    Description: "[optional] The number of CPUUtilization threshold. Default is 70(%)."
+    Default: "70"
+
+  MemoryUtilizationThreshold:
+    Type: Number
+    Description: "[optional] The number of MemoryUtilization threshold. Default is 70(%)."
+    Default: "70"
+
+  ### ECS Capacity Provider Configuration - EC2
   EnableEc2CapacityProvider:
     Type: String
     Description: "[REQUIRED] Enable or disable EC2 capacity provider for ECS cluster."
@@ -135,6 +158,8 @@ Parameters:
     Type: List<AWS::EC2::Subnet::Id>
     Description: "[REQUIRED] The subnet id list of EC2 AutoScaling Group."
     Default: ""
+  
+  ### ECS Capacity Provider Configuration - Fargate
 
   EnableFargateCapacityProvider:
     Type: String
@@ -143,27 +168,6 @@ Parameters:
       - "true"
       - "false"
     Default: "false"
-
-  ### ECS Alarms
-  CpuUtilizationAlarmName:
-    Type: String
-    Description: "[optional] The name of CpuUtilizationAlarm."
-    Default: ""
-
-  MemoryUtilizationAlarmName:
-    Type: String
-    Description: "[optional] The name of MemoryUtilizationAlarm."
-    Default: ""
-
-  CpuUtilizationThreshold:
-    Type: Number
-    Description: "[optional] The number of CPUUtilization threshold. Default is 70(%)."
-    Default: "70"
-
-  MemoryUtilizationThreshold:
-    Type: Number
-    Description: "[optional] The number of MemoryUtilization threshold. Default is 70(%)."
-    Default: "70"
 
 Mappings:
   Ec2InstanceAmi:

@@ -1,5 +1,19 @@
 # EKS CI/CD with AWS Development Tools
 
+- [EKS CI/CD with AWS Development Tools](#eks-cicd-with-aws-development-tools)
+  - [CodeCommit](#codecommit)
+    - [Linux](#linux)
+    - [Windows](#windows)
+  - [CodeBuild - Build](#codebuild---build)
+    - [Linux](#linux-1)
+    - [Windows](#windows-1)
+  - [CodeBuild - Deploy](#codebuild---deploy)
+    - [Linux](#linux-2)
+    - [Windows](#windows-2)
+  - [CodePipeline](#codepipeline)
+    - [Linux](#linux-3)
+    - [Windows](#windows-3)
+
 ## [CodeCommit](codecommit.yaml)
 
 ### Linux
@@ -15,20 +29,35 @@ NotificationTopicName=""            # [optional] The name of SNS topic for CodeC
 NotificationTopicEncryptionKey=""   # [optional] The key ID, ARN, alias name, or arn of SNS topic encryption.
 
 
-curl -O https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/ci-cd/codecommit.yaml
+curl -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/ci-cd/codecommit.yaml
 
+# Using `deploy`
 aws cloudformation deploy \
-    --template-bidy file://codecommit.yaml \
     --stack-name $STACK_NAME \
+    --template-file ./codecommit.yaml \
+    --parameter-overrides \
+        ProjectName=$PROJECT_NAME \
+        RepositoryName=$RepositoryName \
+        EnableNotification=$EnableNotification \
+        NotificationTopicName=$NotificationTopicName \
+        NotificationTopicEncryptionKey=$NotificationTopicEncryptionKey \
+    --tags project=$PROJECT_NAME \
+    --region $REGION \
+    --disable-rollback
+
+# Using `create-stack`
+aws cloudformation create-stack \
+    --stack-name $STACK_NAME \
+    --template-body file://codecommit.yaml \
     --parameters \
         ParameterKey=ProjectName,ParameterValue=$PROJECT_NAME \
         ParameterKey=RepositoryName,ParameterValue=$RepositoryName \
         ParameterKey=EnableNotification,ParameterValue=$EnableNotification \
         ParameterKey=NotificationTopicName,ParameterValue=$NotificationTopicName \
         ParameterKey=NotificationTopicEncryptionKey,ParameterValue=$NotificationTopicEncryptionKey \
-    --disable-rollback \
     --tags Key=project,Value=$PROJECT_NAME \
-    --region $REGION
+    --region $REGION \
+    --disable-rollback
 ```
 
 ### Windows
@@ -46,18 +75,33 @@ $NotificationTopicEncryptionKey=""  # [optional] The key ID, ARN, alias name, or
 
 curl.exe -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/ci-cd/codecommit.yaml
 
+# Using `deploy`
 aws cloudformation deploy `
-    --template-bidy file://codecommit.yaml `
     --stack-name $STACK_NAME `
+    --template-file ./codecommit.yaml `
+    --parameter-overrides `
+        ProjectName=$PROJECT_NAME `
+        RepositoryName=$RepositoryName `
+        EnableNotification=$EnableNotification `
+        NotificationTopicName=$NotificationTopicName `
+        NotificationTopicEncryptionKey=$NotificationTopicEncryptionKey `
+    --tags project=$PROJECT_NAME `
+    --region $REGION `
+    --disable-rollback
+
+# Using `create-stack`
+aws cloudformation create-stack `
+    --stack-name $STACK_NAME `
+    --template-body file://codecommit.yaml `
     --parameters `
         ParameterKey=ProjectName,ParameterValue=$PROJECT_NAME `
         ParameterKey=RepositoryName,ParameterValue=$RepositoryName `
         ParameterKey=EnableNotification,ParameterValue=$EnableNotification `
         ParameterKey=NotificationTopicName,ParameterValue=$NotificationTopicName `
         ParameterKey=NotificationTopicEncryptionKey,ParameterValue=$NotificationTopicEncryptionKey `
-    --disable-rollback `
     --tags Key=project,Value=$PROJECT_NAME `
-    --region $REGION
+    --region $REGION `
+    --disable-rollback
 ```
 
 ---
@@ -93,10 +137,33 @@ ArtifactBranchName="main"           # [REQUIRED] The name of artifact git branch
 # CodeBuild Configuration - Container
 ImageRepositoryName=""              # [REQUIRED] The name of image repository.
 
-curl -O https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/ci-cd/codebuild-build.yaml
+curl -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/ci-cd/codebuild-build.yaml
 
+# Using `deploy`
 aws cloudformation deploy \
-    --template-bidy file://codebuild-build.yaml \
+    --template-file ./codebuild-build.yaml \
+    --stack-name $STACK_NAME \
+    --parameter-overrides \
+        ProjectName=$PROJECT_NAME \
+        CodeCommitStackName=$CodeCommitStackName \
+        BuildProjectName=$BuildProjectName \
+        ServiceRoleName=$ServiceRoleName \
+        EncryptionKey=$EncryptionKey \
+        ComputeType=$ComputeType \
+        Image=$Image \
+        ArchitectureType=$ArchitectureType \
+        BuildSpecFileName=$BuildSpecFileName \
+        ArtifactBucketName=$ArtifactBucketName \
+        ArtifactBranchName=$ArtifactBranchName \
+        ImageRepositoryName=$ImageRepositoryName \
+    --disable-rollback \
+    --tags project=$PROJECT_NAME \
+    --capabilities CAPABILITY_NAMED_IAM \
+    --region $REGION
+
+# Using `create-stack`
+aws cloudformation create-stack \
+    --template-body file://codebuild-build.yaml \
     --stack-name $STACK_NAME \
     --parameters \
         ParameterKey=ProjectName,ParameterValue=$PROJECT_NAME \
@@ -146,10 +213,33 @@ $ArtifactBranchName="main"          # [REQUIRED] The name of artifact git branch
 # CodeBuild Configuration - Container
 $ImageRepositoryName=""             # [REQUIRED] The name of image repository.
 
-curl.exe -O https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/ci-cd/codebuild-build.yaml
+curl.exe -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/ci-cd/codebuild-build.yaml
 
+# Using `deploy`
 aws cloudformation deploy `
-    --template-bidy file://codebuild-build.yaml `
+    --template-file ./codebuild-build.yaml `
+    --stack-name $STACK_NAME `
+    --parameter-overrides `
+        ProjectName=$PROJECT_NAME `
+        CodeCommitStackName=$CodeCommitStackName `
+        BuildProjectName=$BuildProjectName `
+        ServiceRoleName=$ServiceRoleName `
+        EncryptionKey=$EncryptionKey `
+        ComputeType=$ComputeType `
+        Image=$Image `
+        ArchitectureType=$ArchitectureType `
+        BuildSpecFileName=$BuildSpecFileName `
+        ArtifactBucketName=$ArtifactBucketName `
+        ArtifactBranchName=$ArtifactBranchName `
+        ImageRepositoryName=$ImageRepositoryName `
+    --disable-rollback `
+    --tags project=$PROJECT_NAME `
+    --capabilities CAPABILITY_NAMED_IAM `
+    --region $REGION
+
+# Using `create-stack`
+aws cloudformation create-stack `
+    --template-body file://codebuild-build.yaml `
     --stack-name $STACK_NAME `
     --parameters `
         ParameterKey=ProjectName,ParameterValue=$PROJECT_NAME `
@@ -212,10 +302,33 @@ DeploymentName=""                       # [REQUIRED] The name of Kubernetes Depl
 ContainerName=""                        # [REQUIRED] The name of container in Kubernetes Deployment.
 ImageRepositoryName=""                  # [REQUIRED] The name of image repository.
 
-curl -O https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/ci-cd/codebuild-deploy.yaml
+curl -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/ci-cd/codebuild-deploy.yaml
 
+# Using `deploy`
 aws cloudformation deploy \
-    --template-bidy file://codebuild-deploy.yaml \
+    --template-file ./codebuild-deploy.yaml \
+    --stack-name $STACK_NAME \
+    --parameter-overrides \
+        ProjectName=$PROJECT_NAME \
+        CodeCommitStackName=$CodeCommitStackName \
+        BuildProjectName=$BuildProjectName \
+        ServiceRoleName=$ServiceRoleName \
+        EncryptionKey=$EncryptionKey \
+        ComputeType=$ComputeType \
+        Image=$Image \
+        ArchitectureType=$ArchitectureType \
+        BuildSpecFileName=$BuildSpecFileName \
+        ArtifactBucketName=$ArtifactBucketName \
+        ArtifactBranchName=$ArtifactBranchName \
+        ImageRepositoryName=$ImageRepositoryName \
+    --disable-rollback \
+    --tags project=$PROJECT_NAME \
+    --capabilities CAPABILITY_NAMED_IAM \
+    --region $REGION
+
+# Using `create-stack`
+aws cloudformation create-stack \
+    --template-body file://codebuild-deploy.yaml \
     --stack-name $STACK_NAME \
     --parameters \
         ParameterKey=ProjectName,ParameterValue=$PROJECT_NAME \
@@ -274,10 +387,33 @@ $DeploymentName=""                      # [REQUIRED] The name of Kubernetes Depl
 $ContainerName=""                       # [REQUIRED] The name of container in Kubernetes Deployment.
 $ImageRepositoryName=""                 # [REQUIRED] The name of image repository.
 
-curl.exe -O https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/ci-cd/codebuild-deploy.yaml
+curl.exe -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/ci-cd/codebuild-deploy.yaml
 
+# Using `deploy`
 aws cloudformation deploy `
-    --template-bidy file://codebuild-deploy.yaml `
+    --template-file ./codebuild-deploy.yaml `
+    --stack-name $STACK_NAME `
+    --parameter-overrides `
+        ProjectName=$PROJECT_NAME `
+        CodeCommitStackName=$CodeCommitStackName `
+        BuildProjectName=$BuildProjectName `
+        ServiceRoleName=$ServiceRoleName `
+        EncryptionKey=$EncryptionKey `
+        ComputeType=$ComputeType `
+        Image=$Image `
+        ArchitectureType=$ArchitectureType `
+        BuildSpecFileName=$BuildSpecFileName `
+        ArtifactBucketName=$ArtifactBucketName `
+        ArtifactBranchName=$ArtifactBranchName `
+        ImageRepositoryName=$ImageRepositoryName `
+    --disable-rollback `
+    --tags project=$PROJECT_NAME `
+    --capabilities CAPABILITY_NAMED_IAM `
+    --region $REGION
+
+# Using `create-stack`
+aws cloudformation create-stack `
+    --template-file ./codebuild-deploy.yaml `
     --stack-name $STACK_NAME `
     --parameters `
         ParameterKey=ProjectName,ParameterValue=$PROJECT_NAME `
@@ -333,10 +469,34 @@ ArtifactLoggingDestinationPrefix=""      # [optional] The log prefix of artifact
 EventBridgeRoleName=""                   # [optional] The name of EventBridge IAM role.
 EventBridgeRuleName=""                   # [optional] The name of EventBridge rule name.
 
-curl -O https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/ci-cd/codepipeline.yaml
+curl -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/ci-cd/codepipeline.yaml
 
+# Using `deploy`
 aws cloudformation deploy \
-    --template-bidy file://codepipeline.yaml \
+    --template-file ./codepipeline.yaml \
+    --stack-name $STACK_NAME \
+    --parameter-overrides \
+        ProjectName=$PROJECT_NAME \
+        CodeCommitStackName=$CodeCommitStackName \
+        CodeCommitBranchName=$CodeCommitBranchName \
+        CodeBuildStackName=$CodeBuildStackName \
+        CodeBuildDeployStackName=$CodeBuildDeployStackName \
+        PipelineName=$PipelineName \
+        ServiceRoleName=$ServiceRoleName \
+        ArtifactBucketName=$CodeCommitStackName \
+        ArtifactEncryptionKeyId=$ArtifactEncryptionKeyId \
+        ArtifactLoggingDestinationBucketName=$ArtifactLoggingDestinationBucketName \
+        ArtifactLoggingDestinationPrefix=$ArtifactLoggingDestinationPrefix \
+        EventBridgeRoleName=$EventBridgeRoleName \
+        EventBridgeRuleName=$EventBridgeRuleName \
+    --disable-rollback \
+    --tags project=$PROJECT_NAME \
+    --capabilities CAPABILITY_NAMED_IAM \
+    --region $REGION
+
+# Using `create-stack`
+aws cloudformation create-stack \
+    --template-body file://codepipeline.yaml \
     --stack-name $STACK_NAME \
     --parameters \
         ParameterKey=ProjectName,ParameterValue=$PROJECT_NAME \
@@ -389,10 +549,34 @@ $ArtifactLoggingDestinationPrefix=""     # [optional] The log prefix of artifact
 $EventBridgeRoleName=""                  # [optional] The name of EventBridge IAM role.
 $EventBridgeRuleName=""                  # [optional] The name of EventBridge rule name.
 
-curl.exe -O https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/ci-cd/codepipeline.yaml
+curl.exe -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/ci-cd/codepipeline.yaml
 
+# Using `deploy`
 aws cloudformation deploy `
-    --template-bidy file://codepipeline.yaml `
+    --template-file ./codepipeline.yaml `
+    --stack-name $STACK_NAME `
+    --parameter-overrides `
+        ProjectName=$PROJECT_NAME `
+        CodeCommitStackName=$CodeCommitStackName `
+        CodeCommitBranchName=$CodeCommitBranchName `
+        CodeBuildStackName=$CodeBuildStackName `
+        CodeBuildDeployStackName=$CodeBuildDeployStackName `
+        PipelineName=$PipelineName `
+        ServiceRoleName=$ServiceRoleName `
+        ArtifactBucketName=$CodeCommitStackName `
+        ArtifactEncryptionKeyId=$ArtifactEncryptionKeyId `
+        ArtifactLoggingDestinationBucketName=$ArtifactLoggingDestinationBucketName `
+        ArtifactLoggingDestinationPrefix=$ArtifactLoggingDestinationPrefix `
+        EventBridgeRoleName=$EventBridgeRoleName `
+        EventBridgeRuleName=$EventBridgeRuleName `
+    --disable-rollback `
+    --tags project=$PROJECT_NAME `
+    --capabilities CAPABILITY_NAMED_IAM `
+    --region $REGION
+
+# Using `create-stack`
+aws cloudformation create-stack `
+    --template-body file://codepipeline.yaml `
     --stack-name $STACK_NAME `
     --parameters `
         ParameterKey=ProjectName,ParameterValue=$PROJECT_NAME `

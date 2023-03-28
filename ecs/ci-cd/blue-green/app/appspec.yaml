@@ -1,0 +1,13 @@
+version: 0.0
+Resources:
+  - TargetService:
+      Type: AWS::ECS::Service
+      Properties:
+        TaskDefinition: "<TASK_DEFINITION>" # DO NOT UPDATE THIS VALUE
+        LoadBalancerInfo:
+          ContainerName: "app"
+          ContainerPort: 80
+        CapacityProviderStrategy:
+          - Base: 0
+            CapacityProvider: "ECS_CAPACITY_PROVIDER_NAME"
+            Weight: 1

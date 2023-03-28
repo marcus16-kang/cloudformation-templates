@@ -3,20 +3,20 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: "AWS CodeCommit Stack for ECS Blue-Green CI/CD."
 
 Parameters:
-  # Stack Configuration
+  ### Stack Configuration
   ProjectName:
     Type: String
     Description: "[REQUIRED] The name of this project."
 
-  # CodeCommit Configuration - General
+  ### CodeCommit Configuration - General
   RepositoryName:
     Type: String
     Description: "[REQUIRED] The name of CodeCommit repository."
   
-  # CodeCommit Configuration - Notification
+  #### CodeCommit Configuration - Notification
   EnableNotification:
     Type: String
-    Description: "Enable of disable CodeCommit's event notification."
+    Description: "[REQUIRED] Enable of disable CodeCommit's event notification."
     AllowedValues:
       - "enable"
       - "disable"

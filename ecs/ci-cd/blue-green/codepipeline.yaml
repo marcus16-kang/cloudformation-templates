@@ -1,12 +1,12 @@
 AWSTemplateFormatVersion: "2010-09-09"
 
 Parameters:
-  # Stack Configuration
+  ### Stack Configuration
   ProjectName:
     Type: String
     Description: "[REQUIRED] The name of this project."
 
-  # CodeCommit Configuration
+  ### CodeCommit Configuration
   CodeCommitStackName:
     Type: String
     Description: "[optional] The name of CodeCommit stack. (If you don't type anything, pipeline doesn't create source stage.)"
@@ -17,19 +17,19 @@ Parameters:
     Description: "[optional] The name of CodeCommit branch name for trigger pipeline."
     Default: "main"
   
-  # CodeBuild Configuration
+  ### CodeBuild Configuration
   CodeBuildStackName:
     Type: String
     Description: "[optional] The name of CodeBuild stack. (If you don't type anything, pipeline doesn't create build stage.)"
     Default: ""
 
-  # CodeDeploy Configuration
+  ### CodeDeploy Configuration
   CodeDeployStackName:
     Type: String
     Description: "[optional] The name of CodeDeploy stack. (If you don't type anything, pipeline doesn't create deploy stage.)"
     Default: ""
 
-  # CodePipeline Configuration - Pipeline
+  ### CodePipeline Configuration - Pipeline
   PipelineName:
     Type: String
     Description: "[REQUIRED] the name of CodePipeline pipeline."
@@ -38,7 +38,7 @@ Parameters:
     Type: String
     Description: "[REQUIRED] The name of CodePipeline service IAM role."
 
-  # CodePipeline Configuration - Artifact Bucket
+  ### CodePipeline Configuration - Artifact Bucket
   ArtifactBucketName:
     Type: String
     Description: "[REQUIRED] The name of artifact S3 bucket."
@@ -58,7 +58,7 @@ Parameters:
     Description: "[optional] The log prefix of artifact S3 bucket logging."
     Default: ""
   
-  # CodePipeline Configuration - Deploy
+  ### CodePipeline Configuration - Deploy
   TaskDefinitionTemplatePath:
     Type: String
     Description: "[optional] The file name of the task definition."
@@ -69,7 +69,7 @@ Parameters:
     Description: "[optional] The file name of the appspec."
     Default: "appspec.yaml"
   
-  # CodePipeline Configuration - EventBridge
+  ### CodePipeline Configuration - EventBridge
   EventBridgeRoleName:
     Type: String
     Description: "[optional] The name of EventBridge IAM role."
@@ -390,13 +390,6 @@ Resources:
                 - alias/aws/s3
               Type: KMS
           Region: !Ref AWS::Region
-        - ArtifactStore:
-            Location: skills-samsungskills-product-pipeline-artifact-ap-northeast-2
-            Type: S3
-            EncryptionKey:
-              Id: alias/aws/s3
-              Type: KMS
-          Region: ap-northeast-2
       Name: !Ref PipelineName
       RoleArn: !GetAtt ServiceRole.Arn
       Stages:

@@ -3,12 +3,12 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: "AWS CodeDeploy Stack for ECS Blue-Green CI/CD."
 
 Parameters:
-  # Stack Configuration
+  ### Stack Configuration
   ProjectName:
     Type: String
     Description: "[REQUIRED] The name of this project."
 
-  # CodeDeploy Configuration - Application
+  ### CodeDeploy Configuration - Application
   ApplicationName:
     Type: String
     Description: "[REQUIRED] The name of CodeDeploy application."
@@ -17,7 +17,7 @@ Parameters:
     Type: String
     Description: "[REQUIRED] The name of CodeDeploy service IAM role."
   
-  # CodeDeploy Configuration - Deployment Group
+  ### CodeDeploy Configuration - Deployment Group
   DeploymentGroupName:
     Type: String
     Description: "[REQUIRED] The name of CodeDeploy deployment group."
@@ -30,7 +30,7 @@ Parameters:
     Type: String
     Description: "[REQUIRED] The name of ECS service for CodeDeploy deployment group."
 
-  # CodeDeploy Configuration - Load Balancer
+  ### CodeDeploy Configuration - Load Balancer
   AlbListenerArn:
     Type: String
     Description: "[REQUIRED] The arn of ECS service's ALB listener."
