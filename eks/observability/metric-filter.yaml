@@ -1,0 +1,152 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  MetricFilterPrefix:
+    Type: String
+    Description: "[REQUIRED] The prefix of metric filters."
+
+  PodName:
+    Type: String
+    Description: "[REQUIRED] The name of pod which you want to filtering."
+  
+  NamespaceName:
+    Type: String
+    Description: "[REQUIRED] The name of namespace which you want to filtering."
+
+  ClusterName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS cluster which you want to filtering."
+  
+Resources:
+  CpuUtilizationMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterName: !Sub "${MetricFilterPrefix}-cpu-utilization"
+      FilterPattern: !Sub '{ ($.Type = "Pod") && ($.Namespace = "${NamespaceName}") }'
+      LogGroupName: !Sub "/aws/containerinsights/${ClusterName}/performance"
+      MetricTransformations:
+        - Dimensions:
+            - Key: ClusterName
+              Value: $.ClusterName
+            - Key: ServiceName
+              Value: $.Service
+            - Key: PodName
+              Value: $.kubernetes.pod_name
+          MetricName: pod_cpu_utilization
+          MetricNamespace: !Ref NamespaceName
+          MetricValue: $.pod_cpu_utilization
+  
+  MemoryUtilizationMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterName: !Sub "${MetricFilterPrefix}-memory-utilization"
+      FilterPattern: !Sub '{ ($.Type = "Pod") && ($.Namespace = "${NamespaceName}") }'
+      LogGroupName: !Sub "/aws/containerinsights/${ClusterName}/performance"
+      MetricTransformations:
+        - Dimensions:
+            - Key: ClusterName
+              Value: $.ClusterName
+            - Key: ServiceName
+              Value: $.Service
+            - Key: PodName
+              Value: $.kubernetes.pod_name
+          MetricName: pod_memory_utilization
+          MetricNamespace: !Ref NamespaceName
+          MetricValue: $.pod_memory_utilization
+  
+  NetworkRxMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterName: !Sub "${MetricFilterPrefix}-network-rx"
+      FilterPattern: !Sub '{ ($.Type = "Pod") && ($.Namespace = "${NamespaceName}") }'
+      LogGroupName: !Sub "/aws/containerinsights/${ClusterName}/performance"
+      MetricTransformations:
+        - Dimensions:
+            - Key: ClusterName
+              Value: $.ClusterName
+            - Key: ServiceName
+              Value: $.Service
+            - Key: PodName
+              Value: $.kubernetes.pod_name
+          MetricName: pod_network_rx_bytes
+          MetricNamespace: !Ref NamespaceName
+          MetricValue: $.pod_network_rx_bytes
+
+  NetworkTxMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterName: !Sub "${MetricFilterPrefix}-network-tx"
+      FilterPattern: !Sub '{ ($.Type = "Pod") && ($.Namespace = "${NamespaceName}") }'
+      LogGroupName: !Sub "/aws/containerinsights/${ClusterName}/performance"
+      MetricTransformations:
+        - Dimensions:
+            - Key: ClusterName
+              Value: $.ClusterName
+            - Key: ServiceName
+              Value: $.Service
+            - Key: PodName
+              Value: $.kubernetes.pod_name
+          MetricName: pod_network_tx_bytes
+          MetricNamespace: !Ref NamespaceName
+          MetricValue: $.pod_network_tx_bytes
+
+Outputs:
+  CpuUtilizationMetric:
+    Value:
+      Fn::Sub: |
+        {
+            "metrics": [
+                [ { "expression": "SELECT AVG(pod_cpu_utilization) FROM SCHEMA(${NamespaceName}, ClusterName,PodName,ServiceName) WHERE ClusterName = '${ClusterName}' AND ServiceName = '${PodName}' GROUP BY PodName", "label": "", "id": "q1" } ]
+            ],
+            "view": "timeSeries",
+            "stacked": false,
+            "region": "${AWS::Region}",
+            "stat": "Average",
+            "period": 60,
+            "title": "pod_cpu_utilization"
+        }
+
+  MemoryUtilizationMetric:
+    Value:
+      Fn::Sub: |
+        {
+            "metrics": [
+                [ { "expression": "SELECT AVG(pod_memory_utilization) FROM SCHEMA(${NamespaceName}, ClusterName,PodName,ServiceName) WHERE ClusterName = '${ClusterName}' AND ServiceName = '${PodName}' GROUP BY PodName", "label": "", "id": "q1" } ]
+            ],
+            "view": "timeSeries",
+            "stacked": false,
+            "region": "${AWS::Region}",
+            "stat": "Average",
+            "period": 60,
+            "title": "pod_memory_utilization"
+        }
+
+  NetworkRxMetric:
+    Value:
+      Fn::Sub: |
+        {
+            "metrics": [
+                [ { "expression": "SELECT AVG(pod_network_rx_bytes) FROM SCHEMA(${NamespaceName}, ClusterName,PodName,ServiceName) WHERE ClusterName = '${ClusterName}' AND ServiceName = '${PodName}' GROUP BY PodName", "label": "", "id": "q1" } ]
+            ],
+            "view": "timeSeries",
+            "stacked": false,
+            "region": "${AWS::Region}",
+            "stat": "Average",
+            "period": 60,
+            "title": "pod_network_rx_bytes"
+        }
+
+  NetworkTxMetric:
+    Value:
+      Fn::Sub: |
+        {
+            "metrics": [
+                [ { "expression": "SELECT AVG(pod_network_tx_bytes) FROM SCHEMA(${NamespaceName}, ClusterName,PodName,ServiceName) WHERE ClusterName = '${ClusterName}' AND ServiceName = '${PodName}' GROUP BY PodName", "label": "", "id": "q1" } ]
+            ],
+            "view": "timeSeries",
+            "stacked": false,
+            "region": "${AWS::Region}",
+            "stat": "Average",
+            "period": 60,
+            "title": "pod_network_tx_bytes"
+        }
