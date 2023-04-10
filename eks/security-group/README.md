@@ -17,7 +17,7 @@ GeneralNodegroupSecurityGroup=""    # [REQUIRED] The Id of EKS General Nodegroup
 BastionInstanceSecurityGroup=""     # [optional] The Id of Bastion Instance Security Group.
 VpcEndpointSecurityGroup=""         # [optional] The Id of VPC Endpoint Security Group.
 
-curl -O https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/security-group/security-group-rules.yaml
+curl -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/security-group/security-group-rules.yaml
 
 aws cloudformation deploy \
     --template-file ./security-group-rules.yaml \

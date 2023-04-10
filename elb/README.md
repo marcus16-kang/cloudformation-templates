@@ -13,7 +13,7 @@
 ### Linux
 
 ``` bash
-STACK_NANE="<stack name>"
+STACK_NAME="<stack name>"
 PROJECT_NAME="<project name>"
 REGION="<region code>"
 
@@ -91,7 +91,7 @@ aws cloudformation create-stack \
 ### Windows
 
 ``` powershell
-$STACK_NANE="<stack name>"
+$STACK_NAME="<stack name>"
 $PROJECT_NAME="<project name>"
 $REGION="<region code>"
 
@@ -171,7 +171,7 @@ aws cloudformation create-stack `
 ### Linux
 
 ``` bash
-STACK_NANE="<stack name>"
+STACK_NAME="<stack name>"
 PROJECT_NAME="<project name>"
 REGION="<region code>"
 
@@ -209,7 +209,7 @@ aws cloudformation create-stack \
 ### Windows
 
 ``` powershell
-$STACK_NANE="<stack name>"
+$STACK_NAME="<stack name>"
 $PROJECT_NAME="<project name>"
 $REGION="<region code>"
 

@@ -26,7 +26,7 @@ Parameters:
   # CodeBuild (Deploy Image) Configuration
   CodeBuildDeployStackName:
     Type: String
-    Description: "[REQUIRED] The name of CodeBuild (deploy image) stack."
+    Description: "[optional] The name of CodeBuild (deploy image) stack."
     Default: ""
 
   # CodePipeline Configuration - Pipeline
@@ -114,6 +114,9 @@ Metadata:
           - EventBridgeRuleName
 
 Conditions:
+  # CodeBuild - Deploy
+  UseCodeBuildDeployStackName: !Not [ !Equals [!Ref CodeBuildDeployStackName, ""]]
+
   # CodePipeline
   UseArtifactEncryptionKeyId: !Not [ !Equals [!Ref ArtifactEncryptionKeyId, ""] ]
   UseArtifactLogging: !Not [ !Equals [!Ref ArtifactLoggingDestinationBucketName, ""] ]
@@ -397,22 +400,25 @@ Resources:
               InputArtifacts:
                 - Name: SourceArtifact
               RunOrder: 1
-        - Name: Deploy
-          Actions:
-            - Name: Deploy
-              ActionTypeId:
-                Category: Build
-                Owner: AWS
-                Provider: CodeBuild
-                Version: "1"
-              Configuration:
-                ProjectName:
-                  Fn::ImportValue:
-                    !Sub ${CodeBuildDeployStackName}-BuildProjectName
-                EnvironmentVariables: '[{"name":"AWS_ACCOUNT_ID","value":"#{BuildVariables.AWS_ACCOUNT_ID}","type":"PLAINTEXT"},{"name":"AWS_DEFAULT_REGION","value":"#{BuildVariables.AWS_DEFAULT_REGION}","type":"PLAINTEXT"},{"name":"IMAGE_REPO_NAME","value":"#{BuildVariables.IMAGE_REPO_NAME}","type":"PLAINTEXT"},{"name":"IMAGE_TAG","value":"#{BuildVariables.IMAGE_TAG}","type":"PLAINTEXT"}]'
-              InputArtifacts:
-                - Name: SourceArtifact
-              RunOrder: 1
+        - !If
+          - UseCodeBuildDeployStackName
+          - Name: Deploy
+            Actions:
+              - Name: Deploy
+                ActionTypeId:
+                  Category: Build
+                  Owner: AWS
+                  Provider: CodeBuild
+                  Version: "1"
+                Configuration:
+                  ProjectName:
+                    Fn::ImportValue:
+                      !Sub ${CodeBuildDeployStackName}-BuildProjectName
+                  EnvironmentVariables: '[{"name":"AWS_ACCOUNT_ID","value":"#{BuildVariables.AWS_ACCOUNT_ID}","type":"PLAINTEXT"},{"name":"AWS_DEFAULT_REGION","value":"#{BuildVariables.AWS_DEFAULT_REGION}","type":"PLAINTEXT"},{"name":"IMAGE_REPO_NAME","value":"#{BuildVariables.IMAGE_REPO_NAME}","type":"PLAINTEXT"},{"name":"IMAGE_TAG","value":"#{BuildVariables.IMAGE_TAG}","type":"PLAINTEXT"}]'
+                InputArtifacts:
+                  - Name: SourceArtifact
+                RunOrder: 1
+          - !Ref AWS::NoValue
       Tags:
         - Key: project
           Value: !Ref ProjectName
