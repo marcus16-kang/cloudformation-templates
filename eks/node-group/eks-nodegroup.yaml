@@ -1,0 +1,178 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ### Stack Configuration
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
+
+  ### Launch Template Configuration
+  LaunchTemplateName:
+    Type: String
+    Description: "[REQUIRED] he name of this launch template."
+  
+  InstanceName:
+    Type: String
+    Description: "[REQUIRED] The name of EC2 instance."
+
+  SecurityGroupIds:
+    Type: List<AWS::EC2::SecurityGroup::Id>
+    Description: "[REQUIRED] The ids of security group for EC2 instances."
+
+  ### NodeGroup Configuration
+  ClusterName:
+    Type: String
+    Description: "[REQUIRED] The name of eks cluster."
+  
+  NodeGroupName:
+    Type: String
+    Description: "[REQUIRED] The name of eks nodegroup."
+
+  AmiType:
+    Type: String
+    Description: "[REQUIRED] The ami type of nodegroup's EC2 instances."
+    AllowedValues:
+      - AL2_x86_64
+      - AL2_x86_64_GPU
+      - AL2_ARM_64
+      - BOTTLEROCKET_x86_64
+      - BOTTLEROCKET_ARM_64
+      - BOTTLEROCKET_x86_64_NVIDIA
+      - BOTTLEROCKET_ARM_64_NVIDIA
+      - WINDOWS_CORE_2019_x86_64
+      - WINDOWS_CORE_2022_x86_64
+      - WINDOWS_FULL_2019_x86_64
+      - WINDOWS_FULL_2022_x86_64
+      - CUSTOM
+  
+  CapacityType:
+    Type: String
+    Description: "[REQUIRED] The capacity type of nodegroup's EC2 instances."
+    AllowedValues:
+      - ON_DEMAND
+      - SPOT
+  
+  InstanceTypes:
+    Type: String
+    Description: "[REQUIRED] The instance types of nodegroup's EC2 instances."
+
+  NodeRoleArn:
+    Type: String
+    Description: "[REQUIRED] The role arn of nodegroup's EC2 instances."
+  
+  DesiredSize:
+    Type: Number
+    Description: "[REQUIRED] The number of desired size."
+  
+  MinSize:
+    Type: Number
+    Description: "[REQUIRED] The number of min size."
+  
+  MaxSize:
+    Type: Number
+    Description: "[REQUIRED] The number of max size."
+
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: "[REQUIRED] The subnet ids of nodegroup's EC2 instances."
+  
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+
+      - Label:
+          default: Launch Template Configuration
+        Parameters:
+          - LaunchTemplateName
+          - InstanceName
+          - SecurityGroupIds
+
+      - Label:
+          default: NodeGroup Configuration
+        Parameters:
+          - ClusterName
+          - NodeGroupName
+          - AmiType
+          - CapacityType
+          - InstanceTypes
+          - NodeRoleArn
+          - DesiredSize
+          - MinSize
+          - MaxSize
+          - Subnets
+
+Resources:
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvdba
+            Ebs:
+              Encrypted: true
+              Iops: 3000
+              VolumeSize: 50
+              VolumeType: gp3
+              Throughput: 125
+        MetadataOptions:
+          HttpEndpoint: enabled
+          HttpPutResponseHopLimit: 2
+          HttpTokens: required
+          InstanceMetadataTags: enabled
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Ref InstanceName
+              - Key: project
+                Value: !Ref ProjectName
+          - ResourceType: volume
+            Tags:
+              - Key: Name
+                Value: !Ref InstanceName
+              - Key: project
+                Value: !Ref ProjectName
+          - ResourceType: network-interface
+            Tags:
+              - Key: Name
+                Value: !Ref InstanceName
+              - Key: project
+                Value: !Ref ProjectName
+      LaunchTemplateName: !Ref LaunchTemplateName
+      TagSpecifications:
+        - ResourceType: launch-template
+          Tags:
+            - Key: project
+              Value: !Ref ProjectName
+  
+  NodeGroup:
+    Type: AWS::EKS::Nodegroup
+    Properties:
+      AmiType: !Ref AmiType
+      CapacityType: !Ref CapacityType
+      ClusterName: !Ref ClusterName
+      InstanceTypes: !Ref InstanceTypes
+      LaunchTemplate:
+        Id: !Ref LaunchTemplate
+      NodegroupName: !Ref NodeGroupName
+      NodeRole: !Ref NodeRole
+      ScalingConfig:
+        DesiredSize: !Ref DesiredSize
+        MaxSize: !Ref MaxSize
+        MinSize: !Ref MinSize
+      Subnets: !Ref Subnets
+      Tags:
+        project: !Ref ProjectName
+      UpdateConfig:
+        MaxUnavailable: 1
+      # Labels:
+      #   key1: value1
+      #   key2: value2
+      # Taints:
+      #   - Effect: 
+      #     Key: 
+      #     Value: 
