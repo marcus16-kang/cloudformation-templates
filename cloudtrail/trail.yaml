@@ -1,19 +1,17 @@
 AWSTemplateFormatVersion: "2010-09-09"
 
 Parameters:
+  ### Stack Configuration
   ProjectName:
     Type: String
     Description: "[REQUIRED] The name of this project."
-  
-  KmsKeyAlias:
-    Type: String
-    Description: "[REQUIRED] The name of KMS key. (MUST BE STARTED WITH 'alias/')"
-    AllowedPattern: ^alias/[a-zA-Z0-9/_-]+$
 
+  ### Trail Configuration - General
   TrailName:
     Type: String
     Description: "[REQUIRED] The name of CloudTrail trail."
   
+  ### Trail Configuration - CloudWatch Logs
   EnableLogGroup:
     Type: String
     Description: "[REQUIRED] Enable of disable logging to CloudWatch logs from CloudTrail trail."
@@ -32,6 +30,7 @@ Parameters:
     Description: "[optional] The name of CloudWatch Logs IAM Role for CloudTrail trail."
     Default: ""
 
+  ### Trail Configuration - S3
   BucketName:
     Type: String
     Description: "[optional] The name of bucket."
@@ -41,6 +40,12 @@ Parameters:
     Type: String
     Description: "[optional] The prefix of bucket."
     Default: ""
+  
+  ### Trail Configuration - KMS
+  KmsKeyAlias:
+    Type: String
+    Description: "[REQUIRED] The name of KMS key. (MUST BE STARTED WITH 'alias/')"
+    AllowedPattern: ^alias/[a-zA-Z0-9/_-]+$
 
 Metadata:
     AWS::CloudFormation::Interface:

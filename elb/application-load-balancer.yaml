@@ -195,7 +195,7 @@ Resources:
       CidrIp: 0.0.0.0/0
       Description: HTTP - Internet
       FromPort: 80
-      GroupId: !GetAtt SecurityGroup.GroupId
+      GroupId: !Ref SecurityGroupId
       IpProtocol: tcp
       ToPort: 80
   
@@ -205,7 +205,7 @@ Resources:
     Properties:
       Description: "App"
       DestinationSecurityGroupId: !Ref TargetSecurityGroupId
-      GroupId: !GetAtt SecurityGroup.GroupId
+      GroupId: !Ref SecurityGroupId
       IpProtocol: tcp
       FromPort: !Ref TargetPort
       ToPort: !Ref TargetPort
@@ -219,7 +219,7 @@ Resources:
       ToPort: !Ref TargetPort
       GroupId: !Ref TargetSecurityGroupId
       IpProtocol: tcp
-      SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
+      SourceSecurityGroupId: !Ref SecurityGroupId
 
 
   AccessLogBucket:
@@ -329,7 +329,7 @@ Resources:
       Name: !Ref LoadBalancerName
       Scheme: !Ref Scheme
       SecurityGroups:
-        - !GetAtt SecurityGroup.GroupId
+        - !Ref SecurityGroupId
       Subnets: !Ref Subnets
       Tags:
         - Key: Name
@@ -419,7 +419,7 @@ Resources:
   
 Outputs:
   SecurityGroupId:
-    Value: !GetAtt SecurityGroup.GroupId
+    Value: !Ref SecurityGroupId
   TargetGroupArn:
     Value: !Ref TargetGroup
   ListenerArn:

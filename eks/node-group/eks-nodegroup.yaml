@@ -53,7 +53,7 @@ Parameters:
       - SPOT
   
   InstanceTypes:
-    Type: String
+    Type: List<String>
     Description: "[REQUIRED] The instance types of nodegroup's EC2 instances."
 
   NodeRoleArn:
@@ -143,6 +143,7 @@ Resources:
               - Key: project
                 Value: !Ref ProjectName
       LaunchTemplateName: !Ref LaunchTemplateName
+      SecurityGroupIds: !Ref SecurityGroupIds
       TagSpecifications:
         - ResourceType: launch-template
           Tags:
@@ -159,7 +160,7 @@ Resources:
       LaunchTemplate:
         Id: !Ref LaunchTemplate
       NodegroupName: !Ref NodeGroupName
-      NodeRole: !Ref NodeRole
+      NodeRole: !Ref NodeRoleArn
       ScalingConfig:
         DesiredSize: !Ref DesiredSize
         MaxSize: !Ref MaxSize
