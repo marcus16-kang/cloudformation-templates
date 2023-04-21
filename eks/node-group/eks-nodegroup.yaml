@@ -142,8 +142,8 @@ Resources:
                 Value: !Ref InstanceName
               - Key: project
                 Value: !Ref ProjectName
+        SecurityGroupIds: !Ref SecurityGroupIds
       LaunchTemplateName: !Ref LaunchTemplateName
-      SecurityGroupIds: !Ref SecurityGroupIds
       TagSpecifications:
         - ResourceType: launch-template
           Tags:
