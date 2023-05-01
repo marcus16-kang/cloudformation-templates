@@ -127,6 +127,16 @@ Resources:
       GroupId: !Ref GeneralNodegroupSecurityGroup
       IpProtocol: "-1"
   
+  GeneralNodegroupClusterSecuritGroupEgressAllow80Internet:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      CidrIp: 0.0.0.0/0
+      Description: "Images & AWS APIs - HTTP"
+      FromPort: 80
+      GroupId: !Ref GeneralNodegroupSecurityGroup
+      IpProtocol: tcp
+      ToPort: 80
+  
   GeneralNodegroupClusterSecuritGroupEgressAllow443Internet:
     Type: AWS::EC2::SecurityGroupEgress
     Properties:
