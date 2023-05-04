@@ -320,6 +320,13 @@ aws cloudformation deploy \
         BuildSpecFileName=$BuildSpecFileName \
         ArtifactBucketName=$ArtifactBucketName \
         ArtifactBranchName=$ArtifactBranchName \
+        VpcId=$VpcId \
+        Subnets=$Subnets \
+        SecurityGroupId=$SecurityGroupId \
+        ClusterName=$ClusterName \
+        NamespaceName=$NamespaceName \
+        DeploymentName=$DeploymentName \
+        ContainerName=$ContainerName \
         ImageRepositoryName=$ImageRepositoryName \
     --disable-rollback \
     --tags project=$PROJECT_NAME \
@@ -342,6 +349,13 @@ aws cloudformation create-stack \
         ParameterKey=BuildSpecFileName,ParameterValue=$BuildSpecFileName \
         ParameterKey=ArtifactBucketName,ParameterValue=$ArtifactBucketName \
         ParameterKey=ArtifactBranchName,ParameterValue=$ArtifactBranchName \
+        ParameterKey=VpcId,ParameterValue=$VpcId \
+        ParameterKey=Subnets,ParameterValue=$Subnets \
+        ParameterKey=SecurityGroupId,ParameterValue=$SecurityGroupId \
+        ParameterKey=ClusterName,ParameterValue=$ClusterName \
+        ParameterKey=NamespaceName,ParameterValue=$NamespaceName \
+        ParameterKey=DeploymentName,ParameterValue=$DeploymentName \
+        ParameterKey=ContainerName,ParameterValue=$ContainerName \
         ParameterKey=ImageRepositoryName,ParameterValue=$ImageRepositoryName \
     --disable-rollback \
     --tags Key=project,Value=$PROJECT_NAME \
@@ -405,6 +419,13 @@ aws cloudformation deploy `
         BuildSpecFileName=$BuildSpecFileName `
         ArtifactBucketName=$ArtifactBucketName `
         ArtifactBranchName=$ArtifactBranchName `
+        VpcId=$VpcId `
+        Subnets=$Subnets `
+        SecurityGroupId=$SecurityGroupId `
+        ClusterName=$ClusterName `
+        NamespaceName=$NamespaceName `
+        DeploymentName=$DeploymentName `
+        ContainerName=$ContainerName `
         ImageRepositoryName=$ImageRepositoryName `
     --disable-rollback `
     --tags project=$PROJECT_NAME `
@@ -427,6 +448,13 @@ aws cloudformation create-stack `
         ParameterKey=BuildSpecFileName,ParameterValue=$BuildSpecFileName `
         ParameterKey=ArtifactBucketName,ParameterValue=$ArtifactBucketName `
         ParameterKey=ArtifactBranchName,ParameterValue=$ArtifactBranchName `
+        ParameterKey=VpcId,ParameterValue=$VpcId `
+        ParameterKey=Subnets,ParameterValue=$Subnets `
+        ParameterKey=SecurityGroupId,ParameterValue=$SecurityGroupId `
+        ParameterKey=ClusterName,ParameterValue=$ClusterName `
+        ParameterKey=NamespaceName,ParameterValue=$NamespaceName `
+        ParameterKey=DeploymentName,ParameterValue=$DeploymentName `
+        ParameterKey=ContainerName,ParameterValue=$ContainerName `
         ParameterKey=ImageRepositoryName,ParameterValue=$ImageRepositoryName `
     --disable-rollback `
     --tags Key=project,Value=$PROJECT_NAME `
@@ -483,7 +511,7 @@ aws cloudformation deploy \
         CodeBuildDeployStackName=$CodeBuildDeployStackName \
         PipelineName=$PipelineName \
         ServiceRoleName=$ServiceRoleName \
-        ArtifactBucketName=$CodeCommitStackName \
+        ArtifactBucketName=$ArtifactBucketName \
         ArtifactEncryptionKeyId=$ArtifactEncryptionKeyId \
         ArtifactLoggingDestinationBucketName=$ArtifactLoggingDestinationBucketName \
         ArtifactLoggingDestinationPrefix=$ArtifactLoggingDestinationPrefix \
@@ -506,7 +534,7 @@ aws cloudformation create-stack \
         ParameterKey=CodeBuildDeployStackName,ParameterValue=$CodeBuildDeployStackName \
         ParameterKey=PipelineName,ParameterValue=$PipelineName \
         ParameterKey=ServiceRoleName,ParameterValue=$ServiceRoleName \
-        ParameterKey=ArtifactBucketName,ParameterValue=$CodeCommitStackName \
+        ParameterKey=ArtifactBucketName,ParameterValue=$ArtifactBucketName \
         ParameterKey=ArtifactEncryptionKeyId,ParameterValue=$ArtifactEncryptionKeyId \
         ParameterKey=ArtifactLoggingDestinationBucketName,ParameterValue=$ArtifactLoggingDestinationBucketName \
         ParameterKey=ArtifactLoggingDestinationPrefix,ParameterValue=$ArtifactLoggingDestinationPrefix \
@@ -563,7 +591,7 @@ aws cloudformation deploy `
         CodeBuildDeployStackName=$CodeBuildDeployStackName `
         PipelineName=$PipelineName `
         ServiceRoleName=$ServiceRoleName `
-        ArtifactBucketName=$CodeCommitStackName `
+        ArtifactBucketName=$ArtifactBucketName `
         ArtifactEncryptionKeyId=$ArtifactEncryptionKeyId `
         ArtifactLoggingDestinationBucketName=$ArtifactLoggingDestinationBucketName `
         ArtifactLoggingDestinationPrefix=$ArtifactLoggingDestinationPrefix `
@@ -586,7 +614,7 @@ aws cloudformation create-stack `
         ParameterKey=CodeBuildDeployStackName,ParameterValue=$CodeBuildDeployStackName `
         ParameterKey=PipelineName,ParameterValue=$PipelineName `
         ParameterKey=ServiceRoleName,ParameterValue=$ServiceRoleName `
-        ParameterKey=ArtifactBucketName,ParameterValue=$CodeCommitStackName `
+        ParameterKey=ArtifactBucketName,ParameterValue=$ArtifactBucketName `
         ParameterKey=ArtifactEncryptionKeyId,ParameterValue=$ArtifactEncryptionKeyId `
         ParameterKey=ArtifactLoggingDestinationBucketName,ParameterValue=$ArtifactLoggingDestinationBucketName `
         ParameterKey=ArtifactLoggingDestinationPrefix,ParameterValue=$ArtifactLoggingDestinationPrefix `
