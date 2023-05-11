@@ -34,6 +34,7 @@ aws cloudformation deploy \
         BucketName=$BucketName \
         BucketPrefix=$BucketPrefix \
         KmsKeyAlias=$KmsKeyAlias \
+    --capabilities CAPABILITY_NAMED_IAM \
     --disable-rollback \
     --tags project=$PROJECT_NAME \
     --region $REGION
@@ -73,6 +74,7 @@ aws cloudformation deploy `
         BucketName=$BucketName `
         BucketPrefix=$BucketPrefix `
         KmsKeyAlias=$KmsKeyAlias `
+    --capabilities CAPABILITY_NAMED_IAM `
     --disable-rollback `
     --tags project=$PROJECT_NAME `
     --region $REGION

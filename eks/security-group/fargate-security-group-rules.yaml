@@ -1,0 +1,174 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  AdditionalClusterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: "[REQUIRED] The Id of EKS Additional Cluster Security Group."
+  
+  AddonNodegroupSecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: "[REQUIRED] The Id of EKS Add-on Nodegroup Security Group."
+  
+  FargateAppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: "[REQUIRED] The Id of Fargate App Security Group."
+  
+  VpcEndpointSecurityGroup:
+    Type: String
+    Description: "[optional] The Id of VPC Endpoint Security Group."
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Required Parameters
+        Parameters:
+          - AdditionalClusterSecurityGroup
+          - AddonNodegroupSecurityGroup
+          - FargateAppSecurityGroup
+      
+      - Label:
+          default: Optional Parameters
+        Parameters:
+          - VpcEndpointSecurityGroup
+
+Conditions:
+  UseVpcEndpointSecurityGroup: !Not [!Equals [!Ref VpcEndpointSecurityGroup, ""]]
+
+Resources:
+  AdditionalClusterSecurityGroupIngressAllow443FargateApp:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Fargate App Security Group - APIServer"
+      FromPort: 443
+      GroupId: !Ref AdditionalClusterSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref FargateAppSecurityGroup
+      ToPort: 443
+
+  AdditionalClusterSecurityGroupEgressAllows1024to65535FargateApp:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      Description: "Fargate App Security Group - Controllers"
+      DestinationSecurityGroupId: !Ref FargateAppSecurityGroup
+      FromPort: 1024
+      GroupId: !Ref AdditionalClusterSecurityGroup
+      IpProtocol: tcp
+      ToPort: 65535
+  
+  AddonNodegroupSecurityGroupIngressAllowTcp53FargateApp:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Fargate App Security Group - CoreDNS"
+      FromPort: 53
+      GroupId: !Ref AddonNodegroupSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref FargateAppSecurityGroup
+      ToPort: 53
+  
+  AddonNodegroupSecurityGroupIngressAllowUdp53FargateApp:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Fargate App Security Group - CoreDNS"
+      FromPort: 53
+      GroupId: !Ref AddonNodegroupSecurityGroup
+      IpProtocol: udp
+      SourceSecurityGroupId: !Ref FargateAppSecurityGroup
+      ToPort: 53
+  
+  AddonNodegroupSecurityGroupEgressAllows1024to65535FargateApp:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      Description: "Fargate App Security Group - Controllers"
+      DestinationSecurityGroupId: !Ref FargateAppSecurityGroup
+      FromPort: 1024
+      GroupId: !Ref AddonNodegroupSecurityGroup
+      IpProtocol: tcp
+      ToPort: 65535
+
+  FargateAppSecurityGroupIngressAllowsAllMyself:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Fargate App Security Group (MySelf) - ALL"
+      GroupId: !Ref FargateAppSecurityGroup
+      IpProtocol: "-1"
+      SourceSecurityGroupId: !Ref FargateAppSecurityGroup
+
+  FargateAppSecurityGroupIngressAllows1024to65535AdditionalCluster:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Additional Cluster Security Group - Controllers"
+      FromPort: 1024
+      GroupId: !Ref FargateAppSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref AdditionalClusterSecurityGroup
+      ToPort: 65535
+
+  FargateAppSecurityGroupIngressAllows1024to65535AddonNodegroup:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Nodegroup Add-on Security Group - Controllers"
+      FromPort: 1024
+      GroupId: !Ref FargateAppSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref AddonNodegroupSecurityGroup
+      ToPort: 65535
+
+  FargateAppSecurityGroupEgressAllowsAllMyself:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      Description: "Fargate App Security Group (MySelf) - ALL"
+      DestinationSecurityGroupId: !Ref FargateAppSecurityGroup
+      GroupId: !Ref FargateAppSecurityGroup
+      IpProtocol: "-1"
+  
+  FargateAppSecurityGroupEgressAllowsTcp53AddonNodegroup:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      Description: "Nodegroup Add-on Security Group - CoreDNS"
+      DestinationSecurityGroupId: AddonNodegroupSecurityGroup
+      FromPort: 53
+      GroupId: !Ref FargateAppSecurityGroup
+      IpProtocol: tcp
+      ToPort: 53
+  
+  FargateAppSecurityGroupEgressAllowsUdp53AddonNodegroup:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      Description: "Nodegroup Add-on Security Group - CoreDNS"
+      DestinationSecurityGroupId: AddonNodegroupSecurityGroup
+      FromPort: 53
+      GroupId: !Ref FargateAppSecurityGroup
+      IpProtocol: udp
+      ToPort: 53
+
+  FargateAppSecurityGroupEgressAllow80Internet:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      CidrIp: 0.0.0.0/0
+      Description: "Images & AWS APIs - HTTP"
+      FromPort: 80
+      GroupId: !Ref FargateAppSecurityGroup
+      IpProtocol: tcp
+      ToPort: 80
+  
+  FargateAppSecurityGroupEgressAllow443Internet:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      CidrIp: 0.0.0.0/0
+      Description: "Images & AWS APIs - HTTPS"
+      FromPort: 443
+      GroupId: !Ref FargateAppSecurityGroup
+      IpProtocol: tcp
+      ToPort: 443
+
+  VpcEndpointSecurityGroupIngressAllow443FargateApp:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: UseVpcEndpointSecurityGroup
+    Properties:
+      Description: "Fargate App Security Group - AWS APIs"
+      FromPort: 443
+      GroupId: !Ref VpcEndpointSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref FargateAppSecurityGroup
+      ToPort: 443
