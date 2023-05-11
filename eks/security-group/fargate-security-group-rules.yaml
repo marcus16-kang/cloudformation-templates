@@ -126,7 +126,7 @@ Resources:
     Type: AWS::EC2::SecurityGroupEgress
     Properties:
       Description: "Nodegroup Add-on Security Group - CoreDNS"
-      DestinationSecurityGroupId: AddonNodegroupSecurityGroup
+      DestinationSecurityGroupId: !Ref AddonNodegroupSecurityGroup
       FromPort: 53
       GroupId: !Ref FargateAppSecurityGroup
       IpProtocol: tcp
@@ -136,7 +136,7 @@ Resources:
     Type: AWS::EC2::SecurityGroupEgress
     Properties:
       Description: "Nodegroup Add-on Security Group - CoreDNS"
-      DestinationSecurityGroupId: AddonNodegroupSecurityGroup
+      DestinationSecurityGroupId: !Ref AddonNodegroupSecurityGroup
       FromPort: 53
       GroupId: !Ref FargateAppSecurityGroup
       IpProtocol: udp
