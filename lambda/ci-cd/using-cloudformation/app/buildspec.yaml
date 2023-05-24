@@ -1,0 +1,24 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - echo $CODEBUILD_RESOLVED_SOURCE_VERSION
+  pre_build:
+    commands:
+      - echo Pre Build started on `date`
+      - zip lambda_function.zip ./lambda_function.py
+  build:
+    commands:
+      - echo Build started on `date`
+      - sed -i "s|FunctionVersionRandomName|FunctionVersion$CODEBUILD_RESOLVED_SOURCE_VERSION|g" template.yaml
+      - sed -i "s|FUNCTION_S3_BUCKET|<BUCKET_NAME>|g" template.yaml
+      - sed -i "s|FUNCTION_S3_KEY|serverless-cfn-pipel/FunctionCode/$CODEBUILD_RESOLVED_SOURCE_VERSION/lambda_function.zip|g" template.yaml
+  post_build:
+    commands:
+      - echo Post Build completed on `date`
+      - aws s3 cp --sse aws:kms --sse-kms-key-id b740d7d2-23c7-4b20-9705-cd09c475c824  ./lambda_function.zip s3://<BUCKET_NAME>/serverless-cfn-pipel/FunctionCode/$CODEBUILD_RESOLVED_SOURCE_VERSION/
+
+artifacts:
+  files:
+    - template.yaml

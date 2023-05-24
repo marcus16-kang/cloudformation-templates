@@ -1,0 +1,221 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
+  
+  CodeDeployRoleName:
+    Type: String
+    Description: "[REQUIRED] The name of CodeDeploy role name."
+  
+  CodeDeployApplicationName:
+    Type: String
+    Description: "[REQUIRED] The name of CodeDeploy application."
+  
+  CodeDeployDeploymentGroupName:
+    Type: String
+    Description: "[REQUIRED] The name of CodeDeploy deployment group."
+  
+  ApiGatewayName:
+    Type: String
+    Description: "[REQUIRED] The name of API Gateway."
+  
+  FunctionRoleName:
+    Type: String
+    Description: "[REQUIRED] The name of function's IAM role."
+
+  FunctionName:
+    Type: String
+    Description: "[REQUIRED] The name of lambda function."
+
+Resources:
+  CodeDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codedeploy.amazonaws.com
+            Action: sts:AssumeRole
+      Description: An IAM role for CodeDeploy deployment group.
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRoleForLambda
+      Path: /
+      RoleName: !Ref CodeDeployRoleName
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+
+  CodeDeployApplication:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ApplicationName: !Ref CodeDeployApplicationName
+      ComputePlatform: Lambda
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+  
+  CodeDeployDeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    Properties:
+      ApplicationName: !Ref CodeDeployApplication
+      AutoRollbackConfiguration:
+        Enabled: true
+        Events:
+          - DEPLOYMENT_FAILURE
+          - DEPLOYMENT_STOP_ON_ALARM
+          - DEPLOYMENT_STOP_ON_REQUEST
+      DeploymentConfigName: CodeDeployDefault.LambdaLinear10PercentEvery1Minute
+      DeploymentGroupName: !Ref CodeDeployDeploymentGroupName
+      DeploymentStyle:
+        DeploymentOption: WITH_TRAFFIC_CONTROL
+        DeploymentType: BLUE_GREEN
+      ServiceRoleArn: !GetAtt CodeDeployRole.Arn
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+  
+  Api:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      # Body:
+      #   info:
+      #     version: "1.0"
+      #     title: "serverless api with cloudformation"
+      #   paths:
+      #     /:
+      #       get:
+      #         x-amazon-apigateway-integration:
+      #           httpMethod: POST
+      #           type: aws
+      #           uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${FunctionAlias}/invocations"
+      #         responses:
+      #           "200":
+      #             description: "200 response"
+      #             schema:
+      #               $ref: "#/definitions/Empty"
+      #   definitions:
+      #     Empty:
+      #       type: object
+      #       title: Empty Schema
+      #   swagger: "2.0"
+      Description: An API Gateway for serverless api.
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      Mode: overwrite
+      Name: !Ref ApiGatewayName
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+  
+  # ApiResource:
+  #   Type: AWS::ApiGateway::Resource
+  #   Properties:
+  #     ParentId: !GetAtt Api.RootResourceId
+  #     PathPart: '/'
+  #     RestApiId: !Ref Api
+  
+  ApiMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: GET
+      Integration:
+        IntegrationHttpMethod: POST
+        IntegrationResponses:
+          - StatusCode: "200"
+        Type: AWS
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${FunctionAlias}/invocations"
+      MethodResponses:
+        - StatusCode: "200"
+      ResourceId: !GetAtt Api.RootResourceId
+      RestApiId: !Ref Api
+  
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ApiMethod
+    Properties:
+      RestApiId: !Ref Api
+      StageName: prod
+  
+  # ApiStage:
+  #   Type: AWS::ApiGateway::Stage
+  #   Properties:
+  #     DeploymentId: !Ref ApiDeployment
+  #     RestApiId: !Ref Api
+  #     StageName: prod
+  #     Tags:
+  #       - Key: project
+  #         Value: !Ref ProjectName
+  #     TracingEnabled: true
+
+  FunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Description: An IAM role for Lambda function.
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
+      Path: /
+      RoleName: !Ref FunctionRoleName
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+
+  Function:
+    Type: AWS::Lambda::Function
+    Properties:
+      Architectures:
+        - arm64
+      Code:
+        S3Bucket: FUNCTION_S3_BUCKET
+        S3Key: FUNCTION_S3_KEY
+      Description: A Lambda function for serverless application.
+      FunctionName: !Ref FunctionName
+      Handler: lambda_function.lambda_handler
+      PackageType: Zip
+      Role: !GetAtt FunctionRole.Arn
+      Runtime: python3.10
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+      Timeout: 10
+      TracingConfig:
+        Mode: Active
+  
+  FunctionVersionRandomName:
+    Type: AWS::Lambda::Version
+    DeletionPolicy: Retain
+    Properties:
+      FunctionName: !Ref Function
+  
+  FunctionAlias:
+    Type: AWS::Lambda::Alias
+    UpdatePolicy:
+      CodeDeployLambdaAliasUpdate:
+        ApplicationName: !Ref CodeDeployApplication
+        DeploymentGroupName: !Ref CodeDeployDeploymentGroup
+    Properties:
+      FunctionName: !Ref Function
+      FunctionVersion: !GetAtt FunctionVersionRandomName.Version
+      Name: prod
+  
+  FunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref FunctionAlias
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/GET/"
