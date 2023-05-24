@@ -14,7 +14,7 @@ Parameters:
   ### Repository Configuration - Encryption
   EncryptionType:
     Type: String
-    Description: "[REQUIRED] The type of ECR repository encryption."
+    Description: "`KMS`(default) or `AES256` | [REQUIRED] The type of ECR repository encryption."
     AllowedValues:
       - AES256
       - KMS
@@ -28,7 +28,7 @@ Parameters:
   ### Repository Configuration - Scanning
   Scanning:
     Type: String
-    Description: "[REQUIRED] Enable or disable image scanning."
+    Description: "`true`(default) or `false` | [REQUIRED] Enable or disable image scanning."
     AllowedValues:
       - "false"
       - "true"
@@ -37,7 +37,7 @@ Parameters:
   ### Repository Configuration - Immutable
   Immutable:
     Type: String
-    Description: "[REQUIRED] Mutable of immutable ECR repository's images."
+    Description: "`IMMUTABLE`(default) or `MUTABLE` | [REQUIRED] Mutable of immutable ECR repository's images."
     AllowedValues:
       - MUTABLE
       - IMMUTABLE
@@ -73,7 +73,7 @@ Metadata:
           - Immutable
 
 Conditions:
-  UseKmsKey: !Equal [!Ref EncryptionType, "KMS"]
+  UseKmsKey: !Equals [!Ref EncryptionType, "KMS"]
 
 Resources:
   EcrRepository:
