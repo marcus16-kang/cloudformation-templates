@@ -1,6 +1,16 @@
 AWSTemplateFormatVersion: "2010-09-09"
 
 Parameters:
+  ### Stack Configuration
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
+  
+  ### Table Configuration - General
+  TableName:
+    Type: String
+    Description: "[REQUIRED] The name of DynamoDB's table."
+  
   BillingMode:
     Type: String
     Description: "[REQUIRED] The billing mode of DynamoDB Table. (PROVISIONED - Provisioned Mode, PAY_PER_REQUEST - On-Demand Mode)"
@@ -8,7 +18,29 @@ Parameters:
       - "PROVISIONED"
       - "PAY_PER_REQUEST"
     Default: "PAY_PER_REQUEST"
-
+  
+  TableClass:
+    Type: String
+    Description: "[optional] The class of DynamoDB's table."
+    AllowedValues:
+      - STANDARD
+      - STANDARD_INFREQUENT_ACCESS
+    Default: STANDARD
+  
+  EnablePitr:
+    Type: String
+    Description: "[optional] Enable or disable of DynamoDB Table's Point-in-time recovery."
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "true"
+  
+  KmsKeyId:
+    Type: String
+    Description: "[optional] The AWS KMS key that should be used for the AWS KMS encryption. To specify a key, use its key ID, Amazon Resource Name (ARN), alias name, or alias ARN."
+    Default: "alias/aws/dynamodb"
+  
+  ### Table Configuration - Keys
   PartitionKeyAttributeName:
     Type: String
     Description: "[REQUIRED] The name of DynamoDB Table's partition key."
@@ -35,14 +67,7 @@ Parameters:
       - "B"
     Default: "S"
 
-  EnablePitr:
-    Type: String
-    Description: "[optional] Enable or disable of DynamoDB Table's Point-in-time recovery."
-    AllowedValues:
-      - "true"
-      - "false"
-    Default: "true"
-
+  ### Table Configuration - Read Capacity (Provisioned Mode)
   ProvisionedReadCapacityUnits:
     Type: Number
     Description: "[optional] The maximum number of strongly consistent reads consumed per second before DynamoDB returns a ThrottlingException."
@@ -71,6 +96,7 @@ Parameters:
     Description: "[optional] The number of DynamoDB provisioned read capacity units target utilization."
     Default: "70"
 
+  ### Table Configuration - Write Capacity (Provisioned Mode)
   ProvisionedWriteCapacityUnits:
     Type: Number
     Description: "[optional] The maximum number of writes consumed per second before DynamoDB returns a ThrottlingException."
@@ -98,27 +124,6 @@ Parameters:
     Type: Number
     Description: "[optional] The number of DynamoDB provisioned write capacity units target utilization."
     Default: "70"
-
-  KmsKeyId:
-    Type: String
-    Description: "[optional] The AWS KMS key that should be used for the AWS KMS encryption. To specify a key, use its key ID, Amazon Resource Name (ARN), alias name, or alias ARN."
-    Default: "alias/aws/dynamodb"
-
-  TableClass:
-    Type: String
-    Description: "[optional] The class of DynamoDB's table."
-    AllowedValues:
-      - STANDARD
-      - STANDARD_INFREQUENT_ACCESS
-    Default: STANDARD
-
-  TableName:
-    Type: String
-    Description: "[REQUIRED] The name of DynamoDB's table."
-
-  ProjectName:
-    Type: String
-    Description: "[REQUIRED] The name of this project."
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -261,42 +266,14 @@ Resources:
       #   AttributeName:
       #   Enabled: true
 
-  ScalingRole:
-    Type: AWS::IAM::Role
-    Condition: EnableScaling
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: dynamodb.application-autoscaling.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/aws-service-role/AWSApplicationAutoscalingDynamoDBTablePolicy
-      MaxSessionDuration: 3600
-      Path: "/aws-service-role/dynamodb.application-autoscaling.amazonaws.com/"
-      RoleName: !Sub
-        - DynamoDB_Scaling_${region}_${table_name}
-        - region: !Ref AWS::Region
-          table_name: !Ref Table
-      Tags:
-        - Key: project
-          Value: !Ref ProjectName
-        # - Key: key1
-        #   Value: value1
-
   ReadCapacityScalableTarget:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
     Condition: EnableReadScaling
     Properties:
       MaxCapacity: !Ref ProvisionedReadCapacityMaxUnits
       MinCapacity: !Ref ProvisionedReadCapacityMinUnits
-      ResourceId: !Join
-        - /
-        - - table
-          - !Ref Table
-      RoleARN: !GetAtt ScalingRole.Arn
+      ResourceId: !Sub "table/${Table}"
+      RoleARN: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/dynamodb.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_DynamoDBTable
       ScalableDimension: dynamodb:table:ReadCapacityUnits
       ServiceNamespace: dynamodb
       SuspendedState:
@@ -310,11 +287,8 @@ Resources:
     Properties:
       MaxCapacity: !Ref ProvisionedWriteCapacityMaxUnits
       MinCapacity: !Ref ProvisionedWriteCapacityMinUnits
-      ResourceId: !Join
-        - /
-        - - table
-          - !Ref Table
-      RoleARN: !GetAtt ScalingRole.Arn
+      ResourceId: !Sub "table/${Table}"
+      RoleARN: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/dynamodb.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_DynamoDBTable
       ScalableDimension: dynamodb:table:WriteCapacityUnits
       ServiceNamespace: dynamodb
       SuspendedState:
@@ -327,16 +301,9 @@ Resources:
     Condition: EnableReadScaling
     DependsOn: Table
     Properties:
-      PolicyName: !Sub
-        - "${table_name}-scaling-policy"
-        - table_name: !Ref Table
+      PolicyName: !Sub "${Table}-scaling-policy"
       PolicyType: TargetTrackingScaling
-      ResourceId: !Join
-        - /
-        - - table
-          - !Ref Table
-      ScalableDimension: dynamodb:table:ReadCapacityUnits
-      ServiceNamespace: dynamodb
+      ScalingTargetId: !Ref ReadCapacityScalableTarget
       TargetTrackingScalingPolicyConfiguration:
         TargetValue: !Ref ProvisionedReadCapacityTargetUtilization
         PredefinedMetricSpecification:
@@ -347,16 +314,9 @@ Resources:
     Condition: EnableWriteScaling
     DependsOn: Table
     Properties:
-      PolicyName: !Sub
-        - "${table_name}-scaling-policy"
-        - table_name: !Ref Table
+      PolicyName: !Sub "${Table}-scaling-policy"
       PolicyType: TargetTrackingScaling
-      ResourceId: !Join
-        - /
-        - - table
-          - !Ref Table
-      ScalableDimension: dynamodb:table:WriteCapacityUnits
-      ServiceNamespace: dynamodb
+      ScalingTargetId: !Ref WriteCapacityScalableTarget
       TargetTrackingScalingPolicyConfiguration:
         TargetValue: !Ref ProvisionedWriteCapacityTargetUtilization
         PredefinedMetricSpecification:

@@ -1,19 +1,93 @@
 AWSTemplateFormatVersion: "2010-09-09"
 
 Parameters:
-  RepositoryName: # REQUIRED
+  ### Stack Configuration
+  ProjectName:
     Type: String
+    Description: "[REQUIRED] The name of this project."
+  
+  ### Repository Configuration - General
+  RepositoryName:
+    Type: String
+    Description: "[REQUIRED] The name of ECR repository."
+  
+  ### Repository Configuration - Encryption
+  EncryptionType:
+    Type: String
+    Description: "[REQUIRED] The type of ECR repository encryption."
+    AllowedValues:
+      - AES256
+      - KMS
+    Default: KMS
+  
+  KmsKey:
+    Type: String
+    Description: "[optional] The alias, ID, or ARN of KMS key for ECR repository encryption."
+    Default: alias/aws/ecr
+  
+  ### Repository Configuration - Scanning
+  Scanning:
+    Type: String
+    Description: "[REQUIRED] Enable or disable image scanning."
+    AllowedValues:
+      - "false"
+      - "true"
+    Default: "true"
+  
+  ### Repository Configuration - Immutable
+  Immutable:
+    Type: String
+    Description: "[REQUIRED] Mutable of immutable ECR repository's images."
+    AllowedValues:
+      - MUTABLE
+      - IMMUTABLE
+    Default: IMMUTABLE
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+      
+      - Label:
+          default: Repository Configuration - General
+        Parameters:
+          - RepositoryName
+
+      - Label:
+          default: Repository Configuration - Encryption
+        Parameters:
+          - EncryptionType
+          - KmsKey
+      
+      - Label:
+          default: Repository Configuration - Scanning
+        Parameters:
+          - Scanning
+
+      - Label:
+          default: Repository Configuration - Immutable
+        Parameters:
+          - Immutable
+
+Conditions:
+  UseKmsKey: !Equal [!Ref EncryptionType, "KMS"]
 
 Resources:
   EcrRepository:
     Type: AWS::ECR::Repository
     Properties: 
-      # EncryptionConfiguration: 
-      #   EncryptionType: AES256                # AES256(SSE-S3) or KMS(SSE-KMS)
-      #   KmsKey: arn:aws:kms:us-east-1         # KMS alias, key ID, or full ARN of AWS KMS KEY
-      # ImageScanningConfiguration: 
-      #   ScanOnPush: false                     # true of false
-      # ImageTagMutability: MUTABLE             # MUTABLE or IMMUTABLE
+      EncryptionConfiguration: 
+        EncryptionType: !Ref EncryptionType     # AES256(SSE-S3) or KMS(SSE-KMS)
+        KmsKey: !If                             # KMS alias, key ID, or full ARN of AWS KMS KEY
+          - UseKmsKey
+          - !Ref KmsKey
+          - !Ref AWS::NoValue
+      ImageScanningConfiguration: 
+        ScanOnPush: !Ref Scanning               # true of false
+      ImageTagMutability: !Ref Immutable        # MUTABLE or IMMUTABLE
       # LifecyclePolicy: 
       #   LifecyclePolicyText: '{"rules": []}'  # JSON type
       #   RegistryId: !Ref AWS::AccountId       # or Other AWS Account ID
@@ -36,6 +110,6 @@ Resources:
       #         - "ecr:InitiateLayerUpload"
       #         - "ecr:UploadLayerPart"
       #         - "ecr:CompleteLayerUpload"
-      # Tags: 
-      #   - Key: String
-      #     Value: String
+      Tags: 
+        - Key: project
+          Value: !Ref ProjectName
