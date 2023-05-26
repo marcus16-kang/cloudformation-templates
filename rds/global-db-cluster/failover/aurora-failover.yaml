@@ -1,12 +1,12 @@
 AWSTemplateFormatVersion: "2010-09-09"
 
 Parameters:
-  # Stack Configuration
+  ### Stack Configuration
   ProjectName:
     Type: String
     Description: "[REQUIRED] The name of this project."
 
-  # Failover Configuration
+  ### Failover Configuration
   RdsGlobalClusterName:
     Type: String
     Description: "[REQUIRED] The name of RDS global cluster."
@@ -19,7 +19,7 @@ Parameters:
     Type: String
     Description: "[REQUIRED] The record name of Route53 Hosted Zone(ex. db.test.lobal)."
   
-  # Function Configuration
+  ### Function Configuration
   RoleName:
     Type: String
     Description: "[REQUIRED] The name of function's IAM role."

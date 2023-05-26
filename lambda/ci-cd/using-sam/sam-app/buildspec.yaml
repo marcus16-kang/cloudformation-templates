@@ -1,0 +1,11 @@
+version: 0.2
+
+phases:
+  build:
+    commands:
+      - echo Build started on `date`
+      - sam package --output-template-file output.yaml --s3-bucket codepipeline-us-east-1-XXXXXXXXXXXX --s3-prefix sam-pipeline/SamArtifact --kms-key-id arn:aws:kms:us-east-1:XXXXXXXXXXXX:key/b740d7d2-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+
+artifacts:
+  files:
+    - output.yaml

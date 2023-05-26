@@ -1,0 +1,366 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ### Stack Configuration
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
+  
+  ### Subnet Group Configuration
+  SubnetGroupName:
+    Type: String
+    Description: "[REQUIRED] Name of database subnet group"
+
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: "[REQUIRED] List of database subnet ids."
+  
+  ### Parameter Group Configuration
+  ClusterParameterGroupName:
+    Type: String
+    Description: "[REQUIRED] Name of database cluster parameter group."
+  
+  ParameterGroupName:
+    Type: String
+    Description: "[REQUIRED] Name of database parameter group."
+  
+  ### Global Cluster Configuration
+  GlobalClusterIdentifier:
+    Type: String
+    Description: "[REQUIRED] Identifier(name) used for global database cluster."
+    AllowedPattern: "^[a-zA-Z]{1}(?:-?[a-zA-Z0-9]){0,62}$"
+  
+  ### Cluster Configuration - General
+  ClusterIdentifier:
+    Type: String
+    Description: "[REQUIRED] Identifier(name) used for database cluster."
+    AllowedPattern: ^[a-zA-Z][a-zA-Z0-9-]{0,62}[^-]$
+  
+  EngineVersion:
+    Type: String
+    Description: "[REQUIRED] EngineVersion for database. (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-rds-dbcluster.html#cfn-rds-dbcluster-engineversion)"
+    AllowedValues:
+      - "5.7.mysql_aurora.2.07.0"
+      - "5.7.mysql_aurora.2.07.1"
+      - "5.7.mysql_aurora.2.07.2"
+      - "5.7.mysql_aurora.2.07.3"
+      - "5.7.mysql_aurora.2.07.4"
+      - "5.7.mysql_aurora.2.07.5"
+      - "5.7.mysql_aurora.2.07.6"
+      - "5.7.mysql_aurora.2.07.7"
+      - "5.7.mysql_aurora.2.07.8"
+      - "5.7.mysql_aurora.2.07.9"
+      - "5.7.mysql_aurora.2.11.1"
+      - "5.7.mysql_aurora.2.11.2"
+  
+  KmsKeyId:
+    Type: String
+    Description: "[optional] Arn of kms key for database cluster. (If don't specify this property, use default key.)"
+    Default: ""
+  
+  DeletionProtection:
+    Type: String
+    Description: "[optional] State for database deletion protection."
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "false"
+  
+  ### Cluster Configuration - Network
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: "[REQUIRED] ID of database vpc."
+  
+  Port:
+    Type: Number
+    Description: "[REQUIRED] Port number for database instance."
+    Default: "3306"
+  
+  CreateSecurityGroup:
+    Type: String
+    Description: "[REQUIRED] Create a new security group or using existed security group."
+    AllowedValues:
+      - "Yes"
+      - "No"
+    Default: "Yes"
+  
+  SecurityGroupNameOrId:
+    Type: String
+    Description: "[REQUIRED] New security group name or existed security group id."
+  
+  ### Cluster Configuration - Credential
+  Username:
+    Type: String
+    Description: "[REQUIRED] Username for database access."
+    MinLength: "1"
+    MaxLength: "16"
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
+    ConstraintDescription: "must begin with a letter and contain only alphanumeric characters."
+  
+  Password:
+    Type: String
+    Description: "[REQUIRED] Password for database access."
+    NoEcho: "true"
+    MinLength: "8"
+    MaxLength: "41"
+    AllowedPattern: "[a-zA-Z0-9]*"
+    ConstraintDescription: "must contain only alphanumeric characters."
+
+  ### Instance Configuration
+  InstanceClass:
+    Type: String
+    Description: "[REQUIRED] Type of database instance type."
+    AllowedValues:
+      - "db.r3.large"
+      - "db.r3.xlarge"
+      - "db.r3.2xlarge"
+      - "db.r3.4xlarge"
+      - "db.r3.8xlarge"
+      - "db.r4.large"
+      - "db.r4.xlarge"
+      - "db.r4.2xlarge"
+      - "db.r4.4xlarge"
+      - "db.r4.8xlarge"
+      - "db.r4.16xlarge"
+      - "db.r5.large"
+      - "db.r5.xlarge"
+      - "db.r5.2xlarge"
+      - "db.r5.4xlarge"
+      - "db.r5.8xlarge"
+      - "db.r5.12xlarge"
+      - "db.r5.16xlarge"
+      - "db.r5.24xlarge"
+      - "db.r6g.large"
+      - "db.r6g.xlarge"
+      - "db.r6g.2xlarge"
+      - "db.r6g.4xlarge"
+      - "db.r6g.8xlarge"
+      - "db.r6g.12xlarge"
+      - "db.r6g.16xlarge"
+      - "db.r6i.large"
+      - "db.r6i.xlarge"
+      - "db.r6i.2xlarge"
+      - "db.r6i.4xlarge"
+      - "db.r6i.8xlarge"
+      - "db.r6i.12xlarge"
+      - "db.r6i.16xlarge"
+      - "db.r6i.24xlarge"
+      - "db.r6i.32xlarge"
+  
+  Instance1Identifier:
+    Type: String
+    Description: "[REQUIRED] Identifier(name) used for database instance 1 (maybe writer)"
+    AllowedPattern: ^[a-zA-Z][a-zA-Z0-9-]{0,62}[^-]$
+  
+  Instance2Identifier:
+    Type: String
+    Description: "[REQUIRED] Identifier(name) used for database instance 2 (maybe reader)"
+    AllowedPattern: ^[a-zA-Z][a-zA-Z0-9-]{0,62}[^-]$
+  
+  MonitoringRoleName:
+    Type: String
+    Description: "[REQUIRED] Name of database monitoring iam role."
+    Default: RDSMonitoringRole
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+      
+      - Label:
+          default: Subnet Group Configuration
+        Parameters:
+          - SubnetGroupName
+          - Subnets
+      
+      - Label:
+          default: Parameter Group Configuration
+        Parameters:
+          - ClusterParameterGroupName
+          - ParameterGroupName
+      
+      - Label:
+          default: Global Cluster Configuration
+        Parameters:
+          - GlobalClusterIdentifier
+      
+      - Label:
+          default: Cluster Configuration - General
+        Parameters:
+          - ClusterIdentifier
+          - EngineVersion
+          - KmsKeyId
+          - DeletionProtection
+      
+      - Label:
+          default: Cluster Configuration - Network
+        Parameters:
+          - VpcId
+          - Port
+          - CreateSecurityGroup
+          - SecurityGroupNameOrId
+      
+      - Label:
+          default: Cluster Configuration - Credential
+        Parameters:
+          - Username
+          - Password
+      
+      - Label:
+          default: Instance Configuration
+        Parameters:
+          - InstanceClass
+          - Instance1Identifier
+          - Instance2Identifier
+          - MonitoringRoleName
+
+Conditions:
+  CreateNewSecurityGroup: !Equals [!Ref CreateSecurityGroup, "Yes"]
+  UseCmk: !Not [!Equals [!Ref KmsKeyId, ""]]
+
+Resources:
+  MonitoringRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - monitoring.rds.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole
+      RoleName: !Ref MonitoringRoleName
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+  
+  ClusterParameterGroup:
+    Type: AWS::RDS::DBClusterParameterGroup
+    Properties:
+      DBClusterParameterGroupName: !Ref ClusterParameterGroupName
+      Description: !Ref ClusterParameterGroupName
+      Family: aurora-mysql5.7
+      Parameters:
+        time_zone: UTC                                    # MySQL family
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+  
+  ParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      DBParameterGroupName: !Ref ParameterGroupName
+      Description: !Ref ParameterGroupName
+      Family: aurora-mysql5.7
+      # Parameters:
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+  
+  SubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupName: !Ref SubnetGroupName
+      DBSubnetGroupDescription: !Ref SubnetGroupName
+      SubnetIds: !Ref Subnets
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+  
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: CreateNewSecurityGroup
+    Properties:
+      GroupDescription: !Ref SecurityGroupNameOrId
+      GroupName: !Ref SecurityGroupNameOrId
+      SecurityGroupEgress: []                               # any traffic deny is best practice
+      Tags:
+        - Key: Name
+          Value: !Ref SecurityGroupNameOrId
+        - Key: project
+          Value: !Ref ProjectName
+      VpcId: !Ref VpcId
+  
+  GlobalCluster:
+    Type: AWS::RDS::GlobalCluster
+    Properties:
+      GlobalClusterIdentifier: !Ref GlobalClusterIdentifier
+      SourceDBClusterIdentifier: !Ref Cluster
+  
+  Cluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      MasterUsername: !Ref Username
+      MasterUserPassword: !Ref Password
+      DBClusterParameterGroupName: !Ref ClusterParameterGroup
+      Engine: aurora-mysql
+      EngineVersion: !Ref EngineVersion
+      DBClusterIdentifier: !Ref ClusterIdentifier
+      DBSubnetGroupName: !Ref SubnetGroupName
+      DeletionProtection: !Ref DeletionProtection           # `false`(default) or `true`
+      EnableCloudwatchLogsExports: [audit, error, general, slowquery]
+      KmsKeyId: !If
+        - UseCmk
+        - !Ref KmsKeyId
+        - alias/aws/rds
+      NetworkType: IPV4                                     # `IPV4` or `DUAL`
+      Port: !Ref Port
+      PreferredBackupWindow: 00:00-00:30                    # default
+      PreferredMaintenanceWindow: Mon:00:30-Mon:01:00       # default
+      RestoreType: full-copy                                # `full-copy` or `copy-on-write`
+      StorageEncrypted: true
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+      VpcSecurityGroupIds:
+        - !If
+          - CreateNewSecurityGroup
+          - !GetAtt SecurityGroup.GroupId
+          - !Ref SecurityGroupNameOrId
+  
+  Instance1:                                           # (maybe writer instance)
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AutoMinorVersionUpgrade: true                         # `true`(default) or `false`
+      Engine: aurora-mysql
+      DBClusterIdentifier: !Ref Cluster
+      DBInstanceIdentifier: !Ref Instance1Identifier
+      DBParameterGroupName: !Ref ParameterGroup
+      PubliclyAccessible: false                             # `false`(default) or `true`
+      DBInstanceClass: !Ref InstanceClass
+      EnablePerformanceInsights: true                       # `true`(default) or `false`
+      MonitoringInterval: 60                                # `0`, `1`, `5`, `10`, `15`, `30`, `60`(default)
+      MonitoringRoleArn: !GetAtt MonitoringRole.Arn
+      PerformanceInsightsKMSKeyId: !If                      # KMS alias, key ID, or full ARN of AWS KMS KEY
+        - UseCmk
+        - !Ref KmsKeyId
+        - alias/aws/rds
+      PerformanceInsightsRetentionPeriod: 7                 # `7`(default). Valid values are 7 to 731(2 years)
+      PromotionTier: 1                                      # `1`(default, because this instance is writer). Valid values are 0 to 15
+  
+  Instance2:                                           # (maybe reader instance)
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AutoMinorVersionUpgrade: true                         # `true`(default) or `false`
+      Engine: aurora-mysql
+      DBClusterIdentifier: !Ref Cluster
+      DBInstanceIdentifier: !Ref Instance2Identifier
+      DBParameterGroupName: !Ref ParameterGroup
+      PubliclyAccessible: false                             # `false`(default) or `true`
+      DBInstanceClass: !Ref InstanceClass
+      EnablePerformanceInsights: true                       # `true`(default) or `false`
+      MonitoringInterval: 60                                # `0`, `1`, `5`, `10`, `15`, `30`, `60`(default)
+      MonitoringRoleArn: !GetAtt MonitoringRole.Arn
+      PerformanceInsightsKMSKeyId: !If                      # KMS alias, key ID, or full ARN of AWS KMS KEY
+        - UseCmk
+        - !Ref KmsKeyId
+        - alias/aws/rds
+      PerformanceInsightsRetentionPeriod: 7                 # `7`(default). Valid values are 7 to 731(2 years)
+      PromotionTier: 2                                      # `2`(default, because this instance is first reader). Valid values are 0 to 15

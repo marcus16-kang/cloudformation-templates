@@ -1,0 +1,31 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - python3 -m pip install --upgrade pip
+      - pip3 install pytest pytest-cov
+  
+  pre_build:
+    commands:
+      - python3 -m pytest tests/unit/ --junit-xml junit.xml --cov-report=xml --cov=hello_world/
+
+reports:
+  sam-app-test:
+    files:
+      - junit.xml
+    file-format: JUNITXML
+  
+  sam-app-coverage:
+    files:
+      - coverage.xml
+    file-format: COBERTURAXML
+
+artifacts:
+  files:
+    - .aws-sam/**/*
+    - hello_world/**/*
+    - __init__.py
+    - buildspec.yaml
+    - samconfig.toml
+    - template.yaml
