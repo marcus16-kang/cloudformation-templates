@@ -35,9 +35,6 @@ Subnets=""                      # [REQUIRED] List of database subnet ids.
 ClusterParameterGroupName=""    # [REQUIRED] Name of database cluster parameter group.
 ParameterGroupName=""           # [REQUIRED] Name of database parameter group.
 
-### Global Cluster Configuration
-GlobalClusterIdentifier=""      # [REQUIRED] Identifier(name) used for global database cluster.
-
 ### Cluster Configuration - General
 ClusterIdentifier=""            # [REQUIRED] Identifier(name) used for database cluster.
 EngineVersion=""                # [REQUIRED] EngineVersion for database. (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-rds-dbcluster.html#cfn-rds-dbcluster-engineversion)
@@ -63,10 +60,10 @@ Instance1Identifier=""          # [REQUIRED] Identifier(name) used for database 
 Instance2Identifier=""          # [REQUIRED] Identifier(name) used for database instance 2 (maybe reader)
 MonitoringRoleName=""           # [REQUIRED] Name of database monitoring iam role.
 
-curl -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/rds/global-db-cluster/aurora-mysql-8.0-serverless/aurora-primary.yaml
+curl -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/rds/multi-az-cluster/aurora-mysql-8.0-serverless/rds-cluster.yaml
 
 aws cloudformation deploy \
-    --template-file ./aurora-primary.yaml \
+    --template-file ./rds-cluster.yaml \
     --stack-name $STACK_NAME \
     --parameter-overrides \
         ProjectName=$PROJECT_NAME \
@@ -75,7 +72,6 @@ aws cloudformation deploy \
         SecurityGroupIds=$SecurityGroupIds \
         ClusterParameterGroupName=$ClusterParameterGroupName \
         ParameterGroupName=$ParameterGroupName \
-        GlobalClusterIdentifier=$GlobalClusterIdentifier \
         ClusterIdentifier=$ClusterIdentifier \
         EngineVersion=$EngineVersion \
         KmsKeyId=$KmsKeyId \
@@ -113,9 +109,6 @@ $Subnets=""                     # [REQUIRED] List of database subnet ids.
 $ClusterParameterGroupName=""   # [REQUIRED] Name of database cluster parameter group.
 $ParameterGroupName=""          # [REQUIRED] Name of database parameter group.
 
-### Global Cluster Configuration
-$GlobalClusterIdentifier=""     # [REQUIRED] Identifier(name) used for global database cluster.
-
 ### Cluster Configuration - General
 $ClusterIdentifier=""           # [REQUIRED] Identifier(name) used for database cluster.
 $EngineVersion=""               # [REQUIRED] EngineVersion for database. (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-rds-dbcluster.html#cfn-rds-dbcluster-engineversion)
@@ -141,10 +134,10 @@ $Instance1Identifier=""         # [REQUIRED] Identifier(name) used for database 
 $Instance2Identifier=""         # [REQUIRED] Identifier(name) used for database instance 2 (maybe reader)
 $MonitoringRoleName=""          # [REQUIRED] Name of database monitoring iam role.
 
-curl.exe -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/rds/global-db-cluster/aurora-mysql-8.0-serverless/aurora-primary.yaml
+curl.exe -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/rds/multi-az-cluster/aurora-mysql-8.0-serverless/rds-cluster.yaml
 
 aws cloudformation deploy `
-    --template-file ./aurora-primary.yaml `
+    --template-file ./rds-cluster.yaml `
     --stack-name $STACK_NAME `
     --parameter-overrides `
         ProjectName=$PROJECT_NAME `
@@ -153,7 +146,6 @@ aws cloudformation deploy `
         SecurityGroupIds=$SecurityGroupIds `
         ClusterParameterGroupName=$ClusterParameterGroupName `
         ParameterGroupName=$ParameterGroupName `
-        GlobalClusterIdentifier=$GlobalClusterIdentifier `
         ClusterIdentifier=$ClusterIdentifier `
         EngineVersion=$EngineVersion `
         KmsKeyId=$KmsKeyId `

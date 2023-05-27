@@ -120,7 +120,7 @@ Instance1Identifier=""          # [REQUIRED] Identifier(name) used for database 
 Instance2Identifier=""          # [REQUIRED] Identifier(name) used for database instance 2 (maybe reader)
 MonitoringRoleName=""           # [REQUIRED] Name of database monitoring iam role.
 
-curl -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/rds/multio-az-cluster/aurora-mysql-8.0-instance/rds-cluster.yaml
+curl -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/rds/multi-az-cluster/aurora-mysql-8.0-instance/rds-cluster.yaml
 
 aws cloudformation deploy \
     --template-file ./rds-cluster.yaml \
@@ -189,7 +189,7 @@ $Instance1Identifier=""         # [REQUIRED] Identifier(name) used for database 
 $Instance2Identifier=""         # [REQUIRED] Identifier(name) used for database instance 2 (maybe reader)
 $MonitoringRoleName=""          # [REQUIRED] Name of database monitoring iam role.
 
-curl.exe -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/rds/multio-az-cluster/aurora-mysql-8.0-instance/rds-cluster.yaml
+curl.exe -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/rds/multi-az-cluster/aurora-mysql-8.0-instance/rds-cluster.yaml
 
 aws cloudformation deploy `
     --template-file ./rds-cluster.yaml `

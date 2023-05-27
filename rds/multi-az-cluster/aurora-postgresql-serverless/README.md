@@ -1,6 +1,6 @@
-# Aurora PostgreSQL Instance
+# Aurora PostgreSQL Serverless
 
-- [Aurora PostgreSQL Instance](#aurora-postgresql-instance)
+- [Aurora PostgreSQL Serverless](#aurora-postgresql-serverless)
   - [Note](#note)
     - [Cluster Parameter Group Family](#cluster-parameter-group-family)
     - [Engine Version](#engine-version)
@@ -81,13 +81,16 @@ SecurityGroupNameOrId=""        # [REQUIRED] New security group name or existed 
 Username=""                     # [REQUIRED] Username for database access.
 Password=""                     # [REQUIRED] Password for database access.
 
+### Cluster Configuration - Capacity
+MinCapacity=""                  # [REQUIRED] Min capacity of serverless cluster. (0.5 ~ 128)
+MaxCapacity=""                  # [REQUIRED] Max capacity of serverless cluster. (1 ~ 128)
+
 ### Instance Configuration
-InstanceClass=""                # [REQUIRED] Type of database instance type.
 Instance1Identifier=""          # [REQUIRED] Identifier(name) used for database instance 1 (maybe writer)
 Instance2Identifier=""          # [REQUIRED] Identifier(name) used for database instance 2 (maybe reader)
 MonitoringRoleName=""           # [REQUIRED] Name of database monitoring iam role.
 
-curl -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/rds/multi-az-cluster/aurora-postgresql-instance/rds-cluster.yaml
+curl -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/rds/multi-az-cluster/aurora-postgresql-serverless/rds-cluster.yaml
 
 aws cloudformation deploy \
     --template-file ./rds-cluster.yaml \
@@ -111,7 +114,8 @@ aws cloudformation deploy \
         CreateSecurityGroup=$CreateSecurityGroup \
         Username=$Username \
         Password=$Password \
-        InstanceClass=$InstanceClass \
+        MinCapacity=$MinCapacity \
+        MaxCapacity=$MaxCapacity \
         Instance1Identifier=$Instance1Identifier \
         Instance2Identifier=$Instance2Identifier \
         MonitoringRoleName=$MonitoringRoleName \
@@ -153,13 +157,16 @@ $SecurityGroupNameOrId=""       # [REQUIRED] New security group name or existed 
 $Username=""                    # [REQUIRED] Username for database access.
 $Password=""                    # [REQUIRED] Password for database access.
 
+### Cluster Configuration - Capacity
+$MinCapacity=""                 # [REQUIRED] Min capacity of serverless cluster. (0.5 ~ 128)
+$MaxCapacity=""                 # [REQUIRED] Max capacity of serverless cluster. (1 ~ 128)
+
 ### Instance Configuration
-$InstanceClass=""               # [REQUIRED] Type of database instance type.
 $Instance1Identifier=""         # [REQUIRED] Identifier(name) used for database instance 1 (maybe writer)
 $Instance2Identifier=""         # [REQUIRED] Identifier(name) used for database instance 2 (maybe reader)
 $MonitoringRoleName=""          # [REQUIRED] Name of database monitoring iam role.
 
-curl.exe -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/rds/multi-az-cluster/aurora-postgresql-instance/rds-cluster.yaml
+curl.exe -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/rds/multi-az-cluster/aurora-postgresql-serverless/rds-cluster.yaml
 
 aws cloudformation deploy `
     --template-file ./rds-cluster.yaml `
@@ -183,7 +190,8 @@ aws cloudformation deploy `
         CreateSecurityGroup=$CreateSecurityGroup `
         Username=$Username `
         Password=$Password `
-        InstanceClass=$InstanceClass `
+        MinCapacity=$MinCapacity `
+        MaxCapacity=$MaxCapacity `
         Instance1Identifier=$Instance1Identifier `
         Instance2Identifier=$Instance2Identifier `
         MonitoringRoleName=$MonitoringRoleName `

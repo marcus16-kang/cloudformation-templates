@@ -198,6 +198,11 @@ Metadata:
 Conditions:
   CreateNewSecurityGroup: !Equals [!Ref CreateSecurityGroup, "Yes"]
   UseCmk: !Not [!Equals [!Ref KmsKeyId, ""]]
+  UseBurstable: !Or
+    - !Equals [!Ref InstanceClass, "db.t3.medium"]
+    - !Equals [!Ref InstanceClass, "db.t3.large"]
+    - !Equals [!Ref InstanceClass, "db.t4g.medium"]
+    - !Equals [!Ref InstanceClass, "db.t4g.large"]
 
 Resources:
   MonitoringRole:
@@ -307,14 +312,23 @@ Resources:
       DBParameterGroupName: !Ref ParameterGroup
       PubliclyAccessible: false                             # `false`(default) or `true`
       DBInstanceClass: !Ref InstanceClass
-      EnablePerformanceInsights: true                       # `true`(default) or `false`
+      EnablePerformanceInsights: !If                        # `true`(default) or `false`
+        - UseBurstable
+        - false
+        - true
       MonitoringInterval: 60                                # `0`, `1`, `5`, `10`, `15`, `30`, `60`(default)
       MonitoringRoleArn: !GetAtt MonitoringRole.Arn
       PerformanceInsightsKMSKeyId: !If                      # KMS alias, key ID, or full ARN of AWS KMS KEY
-        - UseCmk
-        - !Ref KmsKeyId
-        - alias/aws/rds
-      PerformanceInsightsRetentionPeriod: 7                 # `7`(default). Valid values are 7 to 731(2 years)
+        - UseBurstable
+        - !Ref AWS::NoValue
+        - !If
+          - UseCmk
+          - !Ref KmsKeyId
+          - alias/aws/rds
+      PerformanceInsightsRetentionPeriod: !If               # `7`(default). Valid values are 7 to 731(2 years)
+        - UseBurstable
+        - !Ref AWS::NoValue
+        - 7
       PromotionTier: 1                                      # `1`(default, because this instance is writer). Valid values are 0 to 15
   
   Instance2:                                           # (maybe reader instance)
@@ -327,12 +341,21 @@ Resources:
       DBParameterGroupName: !Ref ParameterGroup
       PubliclyAccessible: false                             # `false`(default) or `true`
       DBInstanceClass: !Ref InstanceClass
-      EnablePerformanceInsights: true                       # `true`(default) or `false`
+      EnablePerformanceInsights: !If                        # `true`(default) or `false`
+        - UseBurstable
+        - false
+        - true
       MonitoringInterval: 60                                # `0`, `1`, `5`, `10`, `15`, `30`, `60`(default)
       MonitoringRoleArn: !GetAtt MonitoringRole.Arn
       PerformanceInsightsKMSKeyId: !If                      # KMS alias, key ID, or full ARN of AWS KMS KEY
-        - UseCmk
-        - !Ref KmsKeyId
-        - alias/aws/rds
-      PerformanceInsightsRetentionPeriod: 7                 # `7`(default). Valid values are 7 to 731(2 years)
+        - UseBurstable
+        - !Ref AWS::NoValue
+        - !If
+          - UseCmk
+          - !Ref KmsKeyId
+          - alias/aws/rds
+      PerformanceInsightsRetentionPeriod: !If               # `7`(default). Valid values are 7 to 731(2 years)
+        - UseBurstable
+        - !Ref AWS::NoValue
+        - 7
       PromotionTier: 2                                      # `2`(default, because this instance is first reader). Valid values are 0 to 15
