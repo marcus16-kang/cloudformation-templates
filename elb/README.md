@@ -24,7 +24,7 @@ Subnets=""                  # [REQUIRED] The id list of alb's subnets.
 Scheme="internet-facing"    # `internet-facing`(default) or `internal` | [REQUIRED] The type of alb.
 IpAddressType="ipv4"        # `ipv4`(default) or `dualstack` | [optional] The IP address type of alb.
 SecurityGroupId=""          # [REQUIRED] The id of alb security group.
-ListenerPathPattern=        # [REQUIRED] The path pattern list of listener. Type with comma(,).  For example, `/v1/test1,/v1/admin*,/v2/test1`.
+ListenerPathPattern=""      # [REQUIRED] The path pattern list of listener. Type with comma(,).  For example, `/v1/test1,/v1/admin*,/v2/test1`.
 
 ### ALB Configuration - Target Group
 TargetGroupName=""          # [REQUIRED] The name of target group.
@@ -102,7 +102,7 @@ $Subnets=""                 # [REQUIRED] The id list of alb's subnets.
 $Scheme="internet-facing"   # `internet-facing`(default) or `internal` | [REQUIRED] The type of alb.
 $IpAddressType="ipv4"       # `ipv4`(default) or `dualstack` | [optional] The IP address type of alb.
 $SecurityGroupId=""         # [REQUIRED] The id of alb security group.
-$ListenerPathPattern=       # [REQUIRED] The path pattern list of listener. Type with comma(,).  For example, `/v1/test1,/v1/admin*,/v2/test1`.
+$ListenerPathPattern=""     # [REQUIRED] The path pattern list of listener. Type with comma(,).  For example, `/v1/test1,/v1/admin*,/v2/test1`.
 
 ### ALB Configuration - Target Group
 $TargetGroupName=""         # [REQUIRED] The name of target group.

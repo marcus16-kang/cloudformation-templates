@@ -56,7 +56,7 @@ aws cloudformation deploy `
     --disable-rollback
 ```
 
-## Monitopring Pods using Container Insights (Not each pod)
+## Monitoring Pods using Container Insights (Not each pod)
 
 ### Pod CPU Utilization
 

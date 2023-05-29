@@ -1,12 +1,12 @@
 AWSTemplateFormatVersion: "2010-09-09"
 
 Parameters:
-  # Stack Configuration
+  ### Stack Configuration
   ProjectName:
     Type: String
     Description: "[REQUIRED] The name of this project."
   
-  # Service Configuration - General
+  ### Service Configuration - General
   ClusterName:
     Type: String
     Description: "[REQUIRED] The name of ECS cluster."
@@ -27,7 +27,15 @@ Parameters:
     Type: String
     Description: "[REQUIRED] The family and revision (family:revision)."
   
-  # Service Configuration - Load Balancer
+  DeploymentType:
+    Type: String
+    Description: "[REQUIRED] The type of service's deployment type."
+    AllowedValues:
+      - ECS
+      - CODE_DEPLOY
+    Default: ECS
+  
+  ### Service Configuration - Load Balancer
   ContainerName:
     Type: String
     Description: "[REQUIRED] The name of the container to associate with the laod balancer."
@@ -40,7 +48,7 @@ Parameters:
     Type: String
     Description: "[REQUIRED] The ARN of the ALB target group."
   
-  # Service Configuration - Network
+  ### Service Configuration - Network
   SecurityGroups:
     Type: List<AWS::EC2::SecurityGroup::Id>
     Description: "[REQUIRED] The IDs of the security groups associated with the service."
@@ -49,7 +57,7 @@ Parameters:
     Type: List<AWS::EC2::Subnet::Id>
     Description: "[REQUIRED] The IDs of the subents associated with the service."
   
-  # Service Configuration - Service Discovert
+  ### Service Configuration - Service Discovery
   CloudMapServiceId:
     Type: String
     Description: "[optional] The ID of Cloud Map service for service discovery in ECS."
@@ -70,6 +78,7 @@ Metadata:
           - CapacityProviderName
           - DesiredCount
           - TaskDefinition
+          - DeploymentType
       
       - Label:
           default: Service Configuration - Load Balancer
@@ -90,6 +99,7 @@ Metadata:
           - CloudMapServiceId
 
 Conditions:
+  UseFargate: !Equals [!Ref CapacityProviderName, "FARGATE"]
   UseServiceDiscovery: !Not [!Equals [!Ref CloudMapServiceId, ""]]
 
 Resources:
@@ -97,16 +107,23 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       CapacityProviderStrategy:
-        - Base: 0
-          CapacityProvider: !Ref CapacityProviderName
-          Weight: 1
+        !If
+          - UseFargate
+          - !Ref AWS::NoValue
+          - - Base: 0
+              CapacityProvider: !Ref CapacityProviderName
+              Weight: 1
       Cluster: !Ref ClusterName
       DeploymentController:
-        Type: CODE_DEPLOY
+        Type: !Ref DeploymentType
       DesiredCount: !Ref DesiredCount
       EnableECSManagedTags: true
       EnableExecuteCommand: false # or true
       HealthCheckGracePeriodSeconds: 0
+      LaunchType: !If
+        - UseFargate
+        - FARGATE
+        - !Ref AWS::NoValue
       LoadBalancers:
         - ContainerName: !Ref ContainerName
           ContainerPort: !Ref ContainerPort

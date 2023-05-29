@@ -50,7 +50,7 @@ REGION="<region code>"
 ### CodeCommit Configuration - General
 RepositoryName=""                   # [REQUIRED] The name of CodeCommit repository.
 
-#### CodeCommit Configuration - Notification
+### CodeCommit Configuration - Notification
 EnableNotification="enable"         # `enable`(default) of `disable` | [REQUIRED] Enable of disable CodeCommit's event notification.
 NotificationTopicName=""            # [optional] The name of SNS topic for CodeCommit event notification
 NotificationTopicEncryptionKey=""   # [optional] The key ID, ARN, alias name, or arn of SNS topic encryption.
@@ -96,7 +96,7 @@ $REGION="<region code>"
 ### CodeCommit Configuration - General
 $RepositoryName=""                  # [REQUIRED] The name of CodeCommit repository.
 
-#### CodeCommit Configuration - Notification
+### CodeCommit Configuration - Notification
 $EnableNotification="enable"        # `enable`(default) of `disable` | [REQUIRED] Enable of disable CodeCommit's event notification.
 $NotificationTopicName=""           # [optional] The name of SNS topic for CodeCommit event notification
 $NotificationTopicEncryptionKey=""  # [optional] The key ID, ARN, alias name, or arn of SNS topic encryption.

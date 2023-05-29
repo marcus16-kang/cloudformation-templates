@@ -1,0 +1,113 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  MetricFilterPrefix:
+    Type: String
+    Description: "[REQUIRED] The prefix of metric filters."
+  
+  ClusterName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS cluster which you want to filtering."
+
+Resources:
+  CpuUtilizationMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterName: !Sub "${MetricFilterPrefix}-cpu-utilization"
+      FilterPattern: '{ ($.Type = "Task") }'
+      LogGroupName: !Sub "/aws/ecs/containerinsights/${ClusterName}/performance"
+      MetricTransformations:
+        - Dimensions:
+            - Key: ServiceName
+              Value: $.ServiceName
+            - Key: TaskId
+              Value: $.TaskId
+          MetricName: task_cpu_utilization
+          MetricNamespace: ECS/ContainerInsights
+          MetricValue: $.CpuUtilized
+          Unit: Percent
+  
+  MemoryUtilizationMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterName: !Sub "${MetricFilterPrefix}-memory-utilization"
+      FilterPattern: '{ ($.Type = "Task") }'
+      LogGroupName: !Sub "/aws/ecs/containerinsights/${ClusterName}/performance"
+      MetricTransformations:
+        - Dimensions:
+            - Key: ServiceName
+              Value: $.ServiceName
+            - Key: TaskId
+              Value: $.TaskId
+          MetricName: task_memory_utilization
+          MetricNamespace: ECS/ContainerInsights
+          MetricValue: $.MemoryUtilized
+          Unit: Megabytes
+  
+  NetworkRxMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterName: !Sub "${MetricFilterPrefix}-network-rx"
+      FilterPattern: '{ ($.Type = "Task") }'
+      LogGroupName: !Sub "/aws/ecs/containerinsights/${ClusterName}/performance"
+      MetricTransformations:
+        - Dimensions:
+            - Key: ServiceName
+              Value: $.ServiceName
+            - Key: TaskId
+              Value: $.TaskId
+          MetricName: task_network_rx_bytes
+          MetricNamespace: ECS/ContainerInsights
+          MetricValue: $.NetworkRxBytes
+          Unit: Bytes/Second
+
+  NetworkTxMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterName: !Sub "${MetricFilterPrefix}-network-tx"
+      FilterPattern: '{ ($.Type = "Task") }'
+      LogGroupName: !Sub "/aws/ecs/containerinsights/${ClusterName}/performance"
+      MetricTransformations:
+        - Dimensions:
+            - Key: ServiceName
+              Value: $.ServiceName
+            - Key: TaskId
+              Value: $.TaskId
+          MetricName: task_network_tx_bytes
+          MetricNamespace: ECS/ContainerInsights
+          MetricValue: $.NetworkTxBytes
+          Unit: Bytes/Second
+  
+  StorageReadMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterName: !Sub "${MetricFilterPrefix}-storage-read"
+      FilterPattern: '{ ($.Type = "Task") }'
+      LogGroupName: !Sub "/aws/ecs/containerinsights/${ClusterName}/performance"
+      MetricTransformations:
+        - Dimensions:
+            - Key: ServiceName
+              Value: $.ServiceName
+            - Key: TaskId
+              Value: $.TaskId
+          MetricName: task_storage_read_bytes
+          MetricNamespace: ECS/ContainerInsights
+          MetricValue: $.StorageReadBytes
+          Unit: Bytes/Second
+  
+  StorageWriteMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterName: !Sub "${MetricFilterPrefix}-storage-write"
+      FilterPattern: '{ ($.Type = "Task") }'
+      LogGroupName: !Sub "/aws/ecs/containerinsights/${ClusterName}/performance"
+      MetricTransformations:
+        - Dimensions:
+            - Key: ServiceName
+              Value: $.ServiceName
+            - Key: TaskId
+              Value: $.TaskId
+          MetricName: task_storage_write_bytes
+          MetricNamespace: ECS/ContainerInsights
+          MetricValue: $.StorageWriteBytes
+          Unit: Bytes/Second

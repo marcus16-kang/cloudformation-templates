@@ -307,7 +307,7 @@ Resources:
         - Key: access_logs.s3.prefix
           Value: !Ref AccessLogPrefix
         # - Key: ipv6.deny_all_igw_traffic
-        #   Value: !If [IsInternal, true, false]C:\Project\marcus16-kang\cloudformation-templates\elb\application-load-balancer.yaml
+        #   Value: !If [IsInternal, true, false
         - Key: idle_timeout.timeout_seconds
           Value: '60'                               # `60`(default), 1~4000'target_group_health.dns_failover.minimum_healthy_targets.count' must be 'off' or a positive intege
         - Key: routing.http.desync_mitigation_mode

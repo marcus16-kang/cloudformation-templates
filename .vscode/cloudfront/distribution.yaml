@@ -1,0 +1,239 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ### Stack Configuration
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this stack's project."
+  
+  ### CloudFront Configuration - Origin
+
+  ### CloudFront Configuration - Default Cache Behavior
+  AllowedMethods:
+    Type: CommaDelimitedList
+    Description: "[REQUIRED] A complex type that contropls which HTTP methods CloudFront processes and forwards to your Amazon S3 or your custom domain."
+    AllowedValues:
+      - GET,HEAD
+      - GET,HEAD,OPTIONS
+      - GET,HEAD,OPTIONS,PUT,PATCH,POST,DELETE
+    Default: GET,HEAD
+  
+  CacheMtehods:
+    Type: CommaDelimitedList
+    Description: "[REQUIRED] A complex type that controls whether CloudFront caches the response to requests using the specified HTTP methods."
+    AllowedValues:
+      - GET,HEAD
+      - GET,HEAD,OPTIONS
+    Default: GET,HEAD
+  
+  CachePolicyId:
+    Type: String
+    Description: "[REQUIRED] The unique identifier of the cache policy that is attached to the default cache behavior."
+  
+  OriginRequestPolicyId:
+    Type: String
+    Description: "[optional] The unique identifier of the origin request policy that is attached to the default cache behavior."
+    Default: ""
+  
+  ResponseHeadersPolicyId:
+    Type: String
+    Description: "[optional] The identifier for a response headers policy."
+    Default: ""
+  
+  ViewerProtocolPolicy:
+    Type: String
+    Description: "[REQUIRED] The protocol that viewers can use to access the files in the origin."
+    AllowedValues:
+      - allow-all
+      - redirect-to-https
+      - https-only
+    Default: allow-all
+  
+  ### CloudFront Configuration - Origin (Default)
+  OriginId:
+    Type: String
+    Description: "[REQUIRED] A unique identifier for the origin."
+  
+  DomainName:
+    Type: String
+    Description: "[REQUIRED] The domain name for the origin. (S3: <BUCKET_NAME>.s3.<REGION_CODE>.amazonaws.com)"
+  
+  OriginPath:
+    Type: String
+    Description: "[optional] An optional path that CloudFront appends to the origin domain name when CloudFront requests content from the origin."
+  
+  ### CloudFront Configuration - Origin (S3)
+  OriginBucketName:
+    Type: String
+    Description: "[Conditional] The name of S3 bucket if you want to use S3 bucket as origin."
+    Default: ""
+  
+  OacName:
+    Type: String
+    Description: "[Conditional] A name to identify the origin access control."
+    Default: ""
+  
+  ### CloudFront Configuration - Origin (Custom)
+
+  
+  ### CloudFront Configuration - Settings
+  DefaultRootObject:
+    Type: String
+    Description: "[optional] The object that you want CloudFront to request from your origin. (For example, index.html. Don't add a / before the object name.)"
+    Default: ""
+  
+  HttpVersion:
+    Type: String
+    Description: "[REQUIRED] Specify the maximum HTTP version(s) that you want viewers to use to communicate with CloudFront."
+    AllowedValues:
+      - http1.1
+      - http2
+      - http2and3
+      - http3
+    Default: http2
+  
+  IPV6Enabled:
+    Type: String
+    Description: "[REQUIRED] If you want CloudFront to respond to IPv6 DNS requests with an IPv6 address for your distribution, specify `true`."
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "true"
+  
+  PriceClass:
+    Type: String
+    Description: "[REQUIRED] The price class that corresponds with the maximum price that you want to pay for CloudFront service."
+    AllowedValues:
+      - PriceClass_All
+      - PriceClass_100
+      - PriceClass_200
+    Default: PriceClass_All
+  
+  ### CloudFront Configuration - Logging
+  LoggingBucket:
+    Type: String
+    Description: "[REQUIRED] The Amazon S3 bucket to store the access logs in, for example, myawslogbucket.s3.amazonaws.com."
+  
+  IncludeCookies:
+    Type: String
+    Description: "[REQUIRED] Specifies whether you want CloudFront to include cookies in access logs, specify true for IncludeCookies."
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "true"
+  
+  Prefix:
+    Type: String
+    Description: "[optional] An optional string that you want CloudFront to prefix to the access log filenames for this distribution, for example, myprefix/."
+    Default: ""
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+
+Conditions:
+  UseOriginRequestPolicy: !Not [!Equals [!Ref OriginRequestPolicyId, ""]]
+  UseResponseHeadersPolicy: !Not [!Equals [!Ref ResponseHeadersPolicyId, ""]]
+
+  UseDefaultRootObject: !Not [!Equals [!Ref DefaultRootObject, ""]]
+
+  UseLoggingPrefix: !Not [!Equals [!Ref Prefix, ""]]
+
+  UseS3AsOrigin: !Not [!Equals [!Ref OriginBucketName, ""]]
+
+  UseOriginPath: !Not [!Equals [!Ref OriginPath, ""]]
+
+Resources:
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Condition: UseS3AsOrigin
+    Properties:
+      OriginAccessControlConfig:
+        Description: !Ref OacName
+        Name: !Ref OacName
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        DefaultCacheBehavior:
+          AllowedMethods: !Ref AllowedMethods
+          CachedMethods: !Ref CachedMethods
+          CachePolicyId: !Ref CachePolicyId
+          Compress: true
+          OriginRequestPolicyId: !If
+            - UseOriginRequestPolicy
+            - !Ref OriginRequestPolicyId
+            - !Ref AWS::NoValue
+          # RealtimeLogConfigArn:
+          ResponseHeadersPolicyId: !If
+            - UseResponseHeadersPolicy
+            - !Ref ResponseHeadersPolicyId
+            - !Ref AWS::NoValue
+          # SmoothStreaming:
+          TargetOriginId: !Ref OriginId
+          # TrustedKeyGroups:
+          ViewerProtocolPolicy: !Ref ViewerProtocolPolicy
+        DefaultRootObject: !If
+          - UseDefaultRootObject
+          - !Ref DefaultRootObject
+          - !Ref AWS::NoValue
+        Enabled: true
+        HttpVersion: !Ref HttpVersion
+        IPV6Enabled: !Ref IPV6Enabled
+        Logging:
+          Bucket: !Ref LoggingBucket
+          IncludeCookies: true
+          Prefix: !If
+            - UseLoggingPrefix
+            - !Ref Prefix
+            - !Ref AWS::NoValue
+        Origins:
+          - ConnectionAttempts: 3
+            ConnectionTimeout: 10
+            CustomOriginConfig:
+              HTTPPort: !Ref HTTPPort
+              HTTPSPort: !Ref HTTPSPort
+              OriginKeepaliveTimeout: 5
+              OriginProtocolPolicy:
+              OriginReadTimeout: 30
+            DomainName: !Ref DomainName
+            Id: !Ref OriginId
+            OriginAccessControlId: !If
+              - UseS3AsOrigin
+              - !Ref OriginAccessControl
+              - !Ref AWS::NoValue
+            # OriginCustomHeaders:
+            #   - HeaderName:
+            #     HeaderValue:
+            OriginPath: !If
+              - UseOriginPath
+              - !Ref OriginPath
+              - !Ref AWS::NoValue
+            # OriginShield:
+            #   Enabled:
+            #   OriginShieldRegion:
+            # S3OriginConfig:           # If you use Origin Access Identity for S3, use this.
+            #   OriginAccessIdentity:
+        PriceClass: !Ref PriceClass
+        # Restrictions:
+        #   GeoRestriction:
+        #     RestrictionType:
+        #       Locations:
+        #         - "US"
+        #         - "KR"
+        #         - "..."
+        #       RestrictionType: blacklist | none | whitelist
+        Staging: false
+        # ViewerCertificate:
+        # WebACLId:
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName

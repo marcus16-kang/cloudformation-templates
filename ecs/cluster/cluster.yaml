@@ -394,13 +394,17 @@ Resources:
 
                 systemctl restart sshd
 
-                echo ECS_CLUSTER=${cluster_name} >> /etc/ecs/ecs.config;
+                echo ECS_CLUSTER=${cluster_name} >> /etc/ecs/ecs.config
+                echo ECS_CONTAINER_STOP_TIMEOUT=3m >> /etc/ecs/ecs.config
+                echo ECS_CONTAINER_START_TIMEOUT=3m >> /etc/ecs/ecs.config
+                echo ECS_CONTAINER_CREATE_TIMEOUT=3m >> /etc/ecs/ecs.config
               - cluster_name: !Ref Cluster
                 ssh_port: !Ref Ec2SshPort
             - !Sub
               - |
                 [settings.ecs]
                 cluster = "${cluster_name}"
+                container-stop-timeout = "3m"
               - cluster_name: !Ref Cluster
       LaunchTemplateName: !If
         - UseEc2LaunchTemplateName
