@@ -11,9 +11,7 @@ REGION="<region code>"
 ClusterName=""                              # [REQUIRED] The name of ECS cluster.
 
 ### ECS Cluster Configuration - Container Insights
-ContainerInsights="enabled"                 # `enable`(default) of `disable` | [optional] Enable of disable ECS cluster's container insights.
-ContainerInsightsTaskRoleName=""            # [optional] The name of container insights task's IAM role.
-ContainerInsightsTaskExecutionRoleName=""   # [optional] The name of container insights task execution's IAM role.
+ContainerInsights="enabled"                 # `enabled`(default) of `disabled` | [optional] Enable of disable ECS cluster's container insights.
 
 ### ECS Cluster Configuration - Alarm
 EnableClusterAlarms="true"                  # `true`(default) of `false` | [optional] Enable of disable to create ECS cluster's alarms.
@@ -53,8 +51,6 @@ aws cloudformation deploy \
         ProjectName=$PROJECT_NAME \
         ClusterName=$ClusterName \
         ContainerInsights=$ContainerInsights \
-        ContainerInsightsTaskRoleName=$ContainerInsightsTaskRoleName \
-        ContainerInsightsTaskExecutionRoleName=$ContainerInsightsTaskExecutionRoleName \
         EnableClusterAlarms=$EnableClusterAlarms \
         CpuUtilizationAlarmName=$CpuUtilizationAlarmName \
         MemoryUtilizationAlarmName=$MemoryUtilizationAlarmName \
@@ -79,6 +75,7 @@ aws cloudformation deploy \
         Ec2AutoScalingSubnetIds=$Ec2AutoScalingSubnetIds \
         EnableFargateCapacityProvider=$EnableFargateCapacityProvider \
     --tags project=$PROJECT_NAME \
+    --capabilities CAPABILITY_NAMED_IAM \
     --disable-rollback \
     --region $REGION
 ```
@@ -94,9 +91,7 @@ $REGION="<region code>"
 $ClusterName=""                             # [REQUIRED] The name of ECS cluster.
 
 ### ECS Cluster Configuration - Container Insights
-$ContainerInsights="enabled"                # `enable`(default) of `disable` | [optional] Enable of disable ECS cluster's container insights.
-$ContainerInsightsTaskRoleName=""           # [optional] The name of container insights task's IAM role.
-$ContainerInsightsTaskExecutionRoleName=""  # [optional] The name of container insights task execution's IAM role.
+$ContainerInsights="enabled"                # `enabled`(default) of `disabled` | [optional] Enable of disable ECS cluster's container insights.
 
 ### ECS Cluster Configuration - Alarm
 $EnableClusterAlarms="true"                 # `true`(default) of `false` | [optional] Enable of disable to create ECS cluster's alarms.
@@ -127,8 +122,6 @@ $Ec2AutoScalingSubnetIds=""                 # [REQUIRED] The subnet id list of E
 ### ECS Capacity Provider Configuration - Fargate
 $EnableFargateCapacityProvider="false"      # `false`(default) of `true` | [REQUIRED] Enable or disable Fargate capacity provider for ECS cluster.
 
-### ECS Capacity Provider Configuration - Fargate
-$EnableFargateCapacityProvider="false"      # [REQUIRED] Enable or disable Fargate capacity provider for ECS cluster.
 
 curl.exe -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/ecs/cluster/cluster.yaml
 
@@ -139,8 +132,6 @@ aws cloudformation deploy `
         ProjectName=$PROJECT_NAME `
         ClusterName=$ClusterName `
         ContainerInsights=$ContainerInsights `
-        ContainerInsightsTaskRoleName=$ContainerInsightsTaskRoleName `
-        ContainerInsightsTaskExecutionRoleName=$ContainerInsightsTaskExecutionRoleName `
         EnableClusterAlarms=$EnableClusterAlarms `
         CpuUtilizationAlarmName=$CpuUtilizationAlarmName `
         MemoryUtilizationAlarmName=$MemoryUtilizationAlarmName `
@@ -165,6 +156,7 @@ aws cloudformation deploy `
         Ec2AutoScalingSubnetIds=$Ec2AutoScalingSubnetIds `
         EnableFargateCapacityProvider=$EnableFargateCapacityProvider `
     --tags project=$PROJECT_NAME `
+    --capabilities CAPABILITY_NAMED_IAM `
     --disable-rollback `
     --region $REGION
 ```

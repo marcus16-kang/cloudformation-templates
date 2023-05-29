@@ -20,16 +20,6 @@ Parameters:
       - "disabled"
     Default: "enabled"
   
-  ContainerInsightsTaskRoleName:
-    Type: String
-    Description: "[optional] The name of container insights task's IAM role."
-    Default: ""
-  
-  ContainerInsightsTaskExecutionRoleName:
-    Type: String
-    Description: "[optional] The name of container insights task execution's IAM role."
-    Default: ""
-
   ### ECS Cluster Configuration - Alarm
   EnableClusterAlarms:
     Type: String
@@ -195,8 +185,6 @@ Metadata:
           default: ECS Cluster Configuration - Container Insights
         Parameters:
           - ContainerInsights
-          - ContainerInsightsTaskRoleName
-          - ContainerInsightsTaskExecutionRoleName
 
       - Label:
           default: ECS Cluster Configuration - Alarm
@@ -236,9 +224,6 @@ Metadata:
 Conditions:
   ### ECS Container Insights
   IsEnableContainerInsights: !Equals [!Ref ContainerInsights, "enabled"]
-  UseContainerInsightsTaskRoleName: !Not [!Equals [!Ref ContainerInsightsTaskRoleName, ""]]
-  UseContainerInsightsTaskExecutionRoleName: !Not [!Equals [!Ref ContainerInsightsTaskExecutionRoleName, ""]]
-
 
   IsEnableClusterAlarms: !Equals [!Ref EnableClusterAlarms, "true"]
 
@@ -282,115 +267,6 @@ Resources:
           Value: ecs-console-v2
         - Key: project
           Value: !Ref ProjectName
-
-  ### ECS Container Insights
-  ContainerInsightsTaskRole:
-    Type: AWS::IAM::Role
-    Condition: IsEnableContainerInsights
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-        - Sid: ''
-          Effect: Allow
-          Principal:
-            Service: ecs-tasks.amazonaws.com
-          Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
-      RoleName: !If
-        - UseContainerInsightsTaskRoleName
-        - !Ref ContainerInsightsTaskRoleName
-        - !Sub "${ClusterName}-cwagent-task-role"
-  
-  ContainerInsightsTaskExecutionRole:
-    Type: AWS::IAM::Role
-    Condition: IsEnableContainerInsights
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-        - Sid: ''
-          Effect: Allow
-          Principal:
-            Service: ecs-tasks.amazonaws.com
-          Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
-        - "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-      RoleName: !If
-        - UseContainerInsightsTaskExecutionRoleName
-        - !Ref ContainerInsightsTaskExecutionRoleName
-        - !Sub "${ClusterName}-cwagent-task-execution-role"
-
-  ContainerInsightsTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    Condition: IsEnableContainerInsights
-    Properties:
-      Family: ecs-cwagent-daemon-service
-      TaskRoleArn: !GetAtt ContainerInsightsTaskRole.Arn
-      ExecutionRoleArn: !GetAtt ContainerInsightsTaskExecutionRole.Arn
-      NetworkMode: bridge
-      ContainerDefinitions:
-        - Image: amazon/cloudwatch-agent:1.247354.0b251981
-          Name: cloudwatch-agent
-          MountPoints:
-            - ReadOnly: true
-              ContainerPath: "/rootfs/proc"
-              SourceVolume: proc
-            - ReadOnly: true
-              ContainerPath: "/rootfs/dev"
-              SourceVolume: dev
-            - ReadOnly: true
-              ContainerPath: "/sys/fs/cgroup"
-              SourceVolume: al2_cgroup
-            - ReadOnly: true
-              ContainerPath: "/cgroup"
-              SourceVolume: al1_cgroup
-            - ReadOnly: true
-              ContainerPath: "/rootfs/sys/fs/cgroup"
-              SourceVolume: al2_cgroup
-            - ReadOnly: true
-              ContainerPath: "/rootfs/cgroup"
-              SourceVolume: al1_cgroup
-          Environment:
-            - Name: USE_DEFAULT_CONFIG
-              Value: 'True'
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-create-group: 'True'
-              awslogs-group: "/ecs/ecs-cwagent-daemon-service"
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-      RequiresCompatibilities:
-        - EC2
-      Volumes:
-        - Name: proc
-          Host:
-            SourcePath: "/proc"
-        - Name: dev
-          Host:
-            SourcePath: "/dev"
-        - Name: al1_cgroup
-          Host:
-            SourcePath: "/cgroup"
-        - Name: al2_cgroup
-          Host:
-            SourcePath: "/sys/fs/cgroup"
-      Cpu: '128'
-      Memory: '64'
-  
-  ContainerInsightsDaemonService:
-    Type: AWS::ECS::Service
-    Condition: IsEnableContainerInsights
-    Properties:
-      TaskDefinition: !Ref ContainerInsightsTaskDefinition
-      Cluster: !Ref Cluster
-      LaunchType: EC2
-      SchedulingStrategy: DAEMON
-      ServiceName: cwagent-daemon-service
-
 
   ### ECS Capacity Provider - EC2
   Ec2SecurityGroup:
