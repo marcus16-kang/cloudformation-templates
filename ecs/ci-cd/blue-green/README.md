@@ -179,6 +179,7 @@ aws cloudformation deploy \
         ImageRepositoryName=$ImageRepositoryName \
     --tags project=$PROJECT_NAME \
     --region $REGION \
+    --capabilities CAPABILITY_NAMED_IAM \
     --disable-rollback
 
 # Using `create-stack`
@@ -199,6 +200,7 @@ aws cloudformation create-stack \
         ParameterKey=ImageRepositoryName,ParameterValue=$ImageRepositoryName \
     --tags Key=project,Value=$PROJECT_NAME \
     --region $REGION \
+    --capabilities CAPABILITY_NAMED_IAM \
     --disable-rollback
 ```
 
@@ -247,6 +249,7 @@ aws cloudformation deploy `
         ImageRepositoryName=$ImageRepositoryName `
     --tags project=$PROJECT_NAME `
     --region $REGION `
+    --capabilities CAPABILITY_NAMED_IAM `
     --disable-rollback
 
 # Using `create-stack`
@@ -267,6 +270,7 @@ aws cloudformation create-stack `
         ParameterKey=ImageRepositoryName,ParameterValue=$ImageRepositoryName `
     --tags Key=project,Value=$PROJECT_NAME `
     --region $REGION `
+    --capabilities CAPABILITY_NAMED_IAM `
     --disable-rollback
 ```
 
@@ -313,6 +317,7 @@ aws cloudformation deploy \
         AlbTargetGroup2Name=$AlbTargetGroup2Name \
     --tags project=$PROJECT_NAME \
     --region $REGION \
+    --capabilities CAPABILITY_NAMED_IAM \
     --disable-rollback
 
 # Using `create-stack`
@@ -332,6 +337,7 @@ aws cloudformation create-stack \
         ParameterKey=AlbTargetGroup2Name,ParameterValue=$AlbTargetGroup2Name \
     --tags Key=project,Value=$PROJECT_NAME \
     --region $REGION \
+    --capabilities CAPABILITY_NAMED_IAM \
     --disable-rollback
 ```
 
@@ -376,6 +382,7 @@ aws cloudformation deploy `
         AlbTargetGroup2Name=$AlbTargetGroup2Name `
     --tags project=$PROJECT_NAME `
     --region $REGION `
+    --capabilities CAPABILITY_NAMED_IAM `
     --disable-rollback
 
 # Using `create-stack`
@@ -395,6 +402,7 @@ aws cloudformation create-stack `
         ParameterKey=AlbTargetGroup2Name,ParameterValue=$AlbTargetGroup2Name `
     --tags Key=project,Value=$PROJECT_NAME `
     --region $REGION `
+    --capabilities CAPABILITY_NAMED_IAM `
     --disable-rollback
 ```
 
@@ -459,6 +467,7 @@ aws cloudformation deploy \
         EventBridgeRuleName=$EventBridgeRuleName \
     --tags project=$PROJECT_NAME \
     --region $REGION \
+    --capabilities CAPABILITY_NAMED_IAM \
     --disable-rollback
 
 # Using `create-stack`
@@ -483,6 +492,7 @@ aws cloudformation create-stack \
         ParameterKey=EventBridgeRuleName,ParameterValue=$EventBridgeRuleName \
     --tags Key=project,Value=$PROJECT_NAME \
     --region $REGION \
+    --capabilities CAPABILITY_NAMED_IAM \
     --disable-rollback
 ```
 
@@ -545,6 +555,7 @@ aws cloudformation deploy `
         EventBridgeRuleName=$EventBridgeRuleName `
     --tags project=$PROJECT_NAME `
     --region $REGION `
+    --capabilities CAPABILITY_NAMED_IAM `
     --disable-rollback
 
 # Using `create-stack`
@@ -569,5 +580,6 @@ aws cloudformation create-stack `
         ParameterKey=EventBridgeRuleName,ParameterValue=$EventBridgeRuleName `
     --tags Key=project,Value=$PROJECT_NAME `
     --region $REGION `
+    --capabilities CAPABILITY_NAMED_IAM `
     --disable-rollback
 ```
