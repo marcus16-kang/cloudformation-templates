@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ### Stack Configuration
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this stack's project."
+  
+  ### EMR Configuration - General
+  VirtualClusterName:
+    Type: String
+    Description: "[REQUIRED] The name of EMR virtual cluster."
+  
+  ### EMR Configuration - EKS
+  EksClusterName:
+    Type: String
+    Description: "[REQUIRED] The name of EKS cluster."
+  
+  NamespaceName:
+    Type: String
+    Description: "[REQUIRED] The name of Kubernetes' namespace which you want to use EMR."
+  
+  ### EMR Configuration - Job Role
+  RoleName:
+    Type: String
+    Description: "[REQUIRED] The name of job role."
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+      
+      - Label:
+          default: EMR Configuration - General
+        Parameters:
+          - VirtualClusterName
+      
+      - Label:
+          default: EMR Configuration - EKS
+        Parameters:
+          - EksClusterName
+          - NamespaceName
+      
+      - Label:
+          default: EMR Configuration - Job Role
+        Parameters:
+          - RoleName
+
+Resources:
+  VirtualCluster:
+    Type: AWS::EMRContainers::VirtualCluster
+    Properties:
+      ContainerProvider:
+        Id: !Ref EksClusterName
+        Info:
+          EksInfo:
+            Namespace: !Ref NamespaceName
+        Type: EKS
+      Name: !Ref VirtualClusterName
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+  
+  JobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: elasticmapreduce.amazonaws.com
+            Action: sts:AssumeRole
+      Description: !Ref RoleName
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+      MaxSessionDuration: 3600
+      Path: /
+      RoleName: !Ref RoleName
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName

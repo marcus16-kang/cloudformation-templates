@@ -1,0 +1,302 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: "ElastiCache for Redis 4.X"
+
+Parameters:
+  ### Stack Configuration
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
+  
+  ### Subnet Group Configuration
+  SubnetGroupName:
+    Type: String
+    Description: "[REQUIRED] Name of cache subnet group"
+
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: "[REQUIRED] List of cache subnet ids."
+  
+  ### Parameter Group Configuration
+  ParameterGroupName:
+    Type: String
+    Description: "[REQUIRED] Name of cache parameter group."
+  
+  ### Cluster Configuration - General
+  ClusterName:
+    Type: String
+    Description: "[REQUIRED] Name used for cache cluster."
+  
+  CacheNodeType:
+    Type: String
+    Description: "[REQUIRED] The instance type of cache node."
+    AllowedValues:
+      - "cache.m5.large"
+      - "cache.m5.xlarge"
+      - "cache.m5.2xlarge"
+      - "cache.m5.4xlarge"
+      - "cache.m5.12xlarge"
+      - "cache.m5.24xlarge"
+      - "cache.m4.large"
+      - "cache.m4.xlarge"
+      - "cache.m4.2xlarge"
+      - "cache.m4.4xlarge"
+      - "cache.m4.10xlarge"
+      - "cache.r5.large"
+      - "cache.r5.xlarge"
+      - "cache.r5.2xlarge"
+      - "cache.r5.4xlarge"
+      - "cache.r5.12xlarge"
+      - "cache.r5.24xlarge"
+      - "cache.r4.large"
+      - "cache.r4.xlarge"
+      - "cache.r4.2xlarge"
+      - "cache.r4.4xlarge"
+      - "cache.r4.8xlarge"
+      - "cache.r4.16xlarge"
+      - "cache.t3.micro"
+      - "cache.t3.small"
+      - "cache.t3.medium"
+      - "cache.t2.micro"
+      - "cache.t2.small"
+      - "cache.t2.medium"
+  
+  ClusterEnabled:
+    Type: String
+    Description: "[REQUIRED] Enable or disable Redis cluster mode."
+    AllowedValues:
+      - "Enabled"
+      - "Disabled"
+    Default: "Disabled"
+
+  NumCacheNodes:
+    Type: Number
+    Description: "[REQUIRED] The number of cache nodes. (cluster disable : 2 | cluster enable : 3)"
+    Default: "2"
+
+  ### Cluster Configuration - Network
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: "[REQUIRED] ID of cache vpc."
+  
+  Port:
+    Type: Number
+    Description: "[REQUIRED] Port number for cache instance."
+    Default: "6379"
+  
+  CreateSecurityGroup:
+    Type: String
+    Description: "[REQUIRED] Create a new security group or using existed security group."
+    AllowedValues:
+      - "Yes"
+      - "No"
+    Default: "Yes"
+  
+  SecurityGroupNameOrId:
+    Type: String
+    Description: "[REQUIRED] New security group name or existed security group id."
+  
+  TransitEncryptionEnabled:
+    Type: String
+    Description: "[optional] Enable or disable the cache cluster transit encryption."
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "false"
+  
+  ### Cluster Configuration - Logging
+  SlowLogDestinationName:
+    Type: String
+    Description: "[optional] The name of cache cluster slow log destination. (If not specified, create log group using cluster name.)"
+    Default: ""
+    
+  EngineLogDestinationName:
+    Type: String
+    Description: "[optional] The name of cache cluster engine log destination. (If not specified, create log group using cluster name.)"
+    Default: ""
+  
+  ### Cluster Configuration - Notification
+  NotificationTopicName:
+    Type: String
+    Description: "[optional] The name of SNS topic. (If not specified, don't create a new topic.)"
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+
+      - Label:
+          default: Subnet Group Configuration
+        Parameters:
+          - SubnetGroupName
+          - Subnets
+
+      - Label:
+          default: Parameter Group Configuration
+        Parameters:
+          - ParameterGroupName
+      
+      - Label:
+          default: Cluster Configuration - General
+        Parameters:
+          - ClusterName
+          - CacheNodeType
+          - ClusterEnabled
+          - NumCacheNodes
+      
+      - Label:
+          default: Cluster Configuration - Network
+        Parameters:
+          - VpcId
+          - Port
+          - CreateSecurityGroup
+          - SecurityGroupNameOrId
+          - TransitEncryptionEnabled
+      
+      - Label:
+          default: Cluster Configuration - Logging
+        Parameters:
+          - SlowLogDestinationName
+          - EngineLogDestinationName
+      
+      - Label:
+          default: Cluster Configuration - Notification
+        Parameters:
+          - NotificationTopicName
+
+Conditions:
+  ClusterModeEnabled: !Equals [!Ref ClusterEnabled, "Enabled"]
+  CreateNewSecurityGroup: !Equals [!Ref CreateSecurityGroup, "Yes"]
+  UseSlowLogDestinationName: !Not [!Equals [!Ref SlowLogDestinationName, ""]]
+  UseEngineLogDestinationName: !Not [!Equals [!Ref EngineLogDestinationName, ""]]
+  CreateNewSnsTopic: !Not [!Equals [!Ref NotificationTopicName, ""]]
+
+Resources:
+  NotificationTopic:
+    Type: AWS::SNS::Topic
+    Condition: CreateNewSnsTopic
+    Properties:
+      DisplayName: !Ref NotificationTopicName
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+      TopicName: !Ref NotificationTopicName
+      TracingConfig: Active
+
+  SlowLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      # KmsKeyId: 
+      LogGroupName: !If
+        - UseSlowLogDestinationName
+        - !Ref SlowLogDestinationName
+        - !Sub "/aws/elasticache/${ClusterName}/slow"
+      RetentionInDays: 90                                 # 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 2192, 2557, 2922, 3288, and 3653
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+        
+  EngineLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      # KmsKeyId: 
+      LogGroupName: !If
+        - UseSlowLogDestinationName
+        - !Ref EngineLogDestinationName
+        - !Sub "/aws/elasticache/${ClusterName}/engine"
+      RetentionInDays: 90                                 # 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 2192, 2557, 2922, 3288, and 3653
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+  
+  ParameterGroup:
+    Type: AWS::ElastiCache::ParameterGroup
+    Properties:
+      CacheParameterGroupFamily: redis4.0
+      Description: !Ref ParameterGroupName
+      Properties:
+        cluster-enabled	: !If
+          - ClusterModeEnabled
+          - yes
+          - no
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+  
+  SubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      CacheSubnetGroupName: !Ref SubnetGroupName
+      Description: !Ref SubnetGroupName
+      SubnetIds: !Ref Subnets
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+  
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: CreateNewSecurityGroup
+    Properties:
+      GroupDescription: !Ref SecurityGroupNameOrId
+      GroupName: !Ref SecurityGroupNameOrId
+      SecurityGroupEgress: []                               # any traffic deny is best practice
+      Tags:
+        - Key: Name
+          Value: !Ref SecurityGroupNameOrId
+        - Key: project
+          Value: !Ref ProjectName
+      VpcId: !Ref VpcId
+  
+  Cluster:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      AtRestEncryptionEnabled: true
+      AutomaticFailoverEnabled: true
+      CacheNodeType: !Ref CacheNodeType
+      CacheParameterGroupName: !Ref ParameterGroup
+      CacheSubnetGroupName: !Ref SubnetGroup
+      ClusterMode: !Ref ClusterEnabled
+      Engine: Redis
+      EngineVersion: "4.0.10"
+      IpDiscovery: ipv4
+      KmsKeyId: !If
+        - UseCmk
+        - !Ref KmsKeyId
+        - alias/aws/rds
+      LogDeliveryConfigurations:
+        - DestinationDetails:
+            CloudWatchLogsDetails:
+              LogGroup: !Ref SlowLogGroup
+          DestinationType: cloudwatch-logs
+          LogFormat: json
+          LogType: slow-log
+        - DestinationDetails:
+            CloudWatchLogsDetails:
+              LogGroup: !Ref EngineLogGroup
+          DestinationType: cloudwatch-logs
+          LogFormat: json
+          LogType: slow-log
+      MultiAZEnabled: true
+      NetworkType: ipv4
+      NotificationTopicArn: !If
+        - CreateNewSnsTopic
+        - !Ref NotificationTopic
+        - !Ref AWS::NoValue
+      NumCacheClusters: !Ref NumCacheNodes
+      Port: !Ref Port
+      PreferredMaintenanceWindow: sun:14:00-sun:15:30
+      ClusterName: !Ref ClusterName
+      SnapshotRetentionLimit: 1
+      SnapshotWindow: 16:00-17:00
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+      TransitEncryptionEnabled: !Ref TransitEncryptionEnabled
+      VpcSecurityGroupIds:
+        - !If
+          - CreateNewSecurityGroup
+          - !GetAtt SecurityGroup.GroupId
+          - !Ref SecurityGroupNameOrId
