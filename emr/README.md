@@ -21,12 +21,14 @@ RoleName=""             # [REQUIRED] The name of job role.
 
 aws cloudformation deploy \
     --template-file ./emr-container.yaml \
+    --stack-name $STACK_NAME \
     --parameter-overrides \
         ProjectName=$PROJECT_NAME \
         VirtualClusterName=$VirtualClusterName \
         EksClusterName=$EksClusterName \
         NamespaceName=$NamespaceName \
         RoleName=$RoleName \
+    --capabilities CAPABILITY_NAMED_IAM \
     --tags project=$PROJECT_NAME \
     --disable-rollback \
     --region $REGION
@@ -51,12 +53,14 @@ $RoleName=""             # [REQUIRED] The name of job role.
 
 aws cloudformation deploy `
     --template-file ./emr-container.yaml `
+    --stack-name $STACK_NAME `
     --parameter-overrides `
         ProjectName=$PROJECT_NAME `
         VirtualClusterName=$VirtualClusterName `
         EksClusterName=$EksClusterName `
         NamespaceName=$NamespaceName `
         RoleName=$RoleName `
+    --capabilities CAPABILITY_NAMED_IAM `
     --tags project=$PROJECT_NAME `
     --disable-rollback `
     --region $REGION

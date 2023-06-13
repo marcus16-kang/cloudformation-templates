@@ -20,7 +20,7 @@ EventName=""                # [REQUIRED] The name of EventBridge rule.
 curl -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/rds/global-db-cluster/failover/aurora-failover.yaml
 
 aws cloudformation deploy \
-    --template-file ./aurora-primary.yaml \
+    --template-file ./aurora-failover.yaml \
     --stack-name $STACK_NAME \
     --parameter-overrides \
         ProjectName=$PROJECT_NAME \
@@ -57,7 +57,7 @@ $EventName=""               # [REQUIRED] The name of EventBridge rule.
 curl.exe -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/rds/global-db-cluster/failover/aurora-failover.yaml
 
 aws cloudformation deploy `
-    --template-file ./aurora-primary.yaml `
+    --template-file ./aurora-failover.yaml `
     --stack-name $STACK_NAME `
     --parameter-overrides `
         ProjectName=$PROJECT_NAME `
