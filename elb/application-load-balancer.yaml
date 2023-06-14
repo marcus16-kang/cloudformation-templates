@@ -189,15 +189,15 @@ Resources:
   #       - Key: project
   #         Value: !Ref ProjectName
 
-  ElbSecurityGroupIngress:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      CidrIp: 0.0.0.0/0
-      Description: HTTP - Internet
-      FromPort: 80
-      GroupId: !Ref SecurityGroupId
-      IpProtocol: tcp
-      ToPort: 80
+  # ElbSecurityGroupIngress:
+  #   Type: AWS::EC2::SecurityGroupIngress
+  #   Properties:
+  #     CidrIp: 0.0.0.0/0
+  #     Description: HTTP - Internet
+  #     FromPort: 80
+  #     GroupId: !Ref SecurityGroupId
+  #     IpProtocol: tcp
+  #     ToPort: 80
   
   ElbSecurityGroupEgress:
     Type: AWS::EC2::SecurityGroupEgress
@@ -333,7 +333,7 @@ Resources:
       Subnets: !Ref Subnets
       Tags:
         - Key: Name
-          Value: LoadBalancerName
+          Value: !Ref LoadBalancerName
         - Key: project
           Value: !Ref ProjectName
       Type: application
