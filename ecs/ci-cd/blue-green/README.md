@@ -151,7 +151,7 @@ EncryptionKey="alias/aws/s3"        # [optional] The ARN or Alias of KMS key for
 ComputeType="BUILD_GENERAL1_SMALL"  # [optional] The type of CodeBuild compute type. (The ARM container DOES NOT SUPPORT 'BUILD_GENERAL1_MEDIUM'.)
 # BUILD_GENERAL1_SMALL | BUILD_GENERAL1_MEDIUM | BUILD_GENERAL1_LARGE
 Image=""                            # [REQUIRED] The image tag of CodeBuild image.
-# aws/codebuild/amazonlinux2-x86_64-standard:3.0 | aws/codebuild/amazonlinux2-x86_64-standard:4.0 | aws/codebuild/amazonlinux2-aarch64-standard:1.0 | aws/codebuild/amazonlinux2-aarch64-standard:2.0
+# aws/codebuild/amazonlinux2-x86_64-standard:4.0 | aws/codebuild/amazonlinux2-x86_64-standard:5.0 | aws/codebuild/amazonlinux2-aarch64-standard:2.0 | aws/codebuild/amazonlinux2-aarch64-standard:3.0
 ArchitectureType=""                 # `LINUX_CONTAINER` or `ARM_CONTAINER` | [REQUIRED] The type of CodeBuild architecture type.
 ArtifactBucketName=""               # [REQUIRED] The name of artifact S3 bucket.
 ArtifactBranchName="main"           # [REQUIRED] The name of artifact git branch.
@@ -221,7 +221,7 @@ $EncryptionKey="alias/aws/s3"       # [optional] The ARN or Alias of KMS key for
 $ComputeType="BUILD_GENERAL1_SMALL" # [optional] The type of CodeBuild compute type. (The ARM container DOES NOT SUPPORT 'BUILD_GENERAL1_MEDIUM'.)
 # BUILD_GENERAL1_SMALL | BUILD_GENERAL1_MEDIUM | BUILD_GENERAL1_LARGE
 $Image=""                           # [REQUIRED] The image tag of CodeBuild image.
-# aws/codebuild/amazonlinux2-x86_64-standard:3.0 | aws/codebuild/amazonlinux2-x86_64-standard:4.0 | aws/codebuild/amazonlinux2-aarch64-standard:1.0 | aws/codebuild/amazonlinux2-aarch64-standard:2.0
+# aws/codebuild/amazonlinux2-x86_64-standard:4.0 | aws/codebuild/amazonlinux2-x86_64-standard:5.0 | aws/codebuild/amazonlinux2-aarch64-standard:2.0 | aws/codebuild/amazonlinux2-aarch64-standard:3.0
 $ArchitectureType=""                # `LINUX_CONTAINER` or `ARM_CONTAINER` | [REQUIRED] The type of CodeBuild architecture type.
 $ArtifactBucketName=""              # [REQUIRED] The name of artifact S3 bucket.
 $ArtifactBranchName="main"          # [REQUIRED] The name of artifact git branch.

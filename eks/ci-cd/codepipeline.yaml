@@ -344,6 +344,11 @@ Resources:
                   - appconfig:StartDeployment
                   - appconfig:StopDeployment
                   - appconfig:GetDeployment
+              - Effect: Allow
+                Resource: "*"
+                Action:
+                  - lambda:ListFunctions
+                  - lambda:InvokeFunction
           PolicyName: ServiceRolePolicy
       RoleName: !Ref ServiceRoleName
       Tags:
