@@ -34,6 +34,7 @@ TargetPort="80"             # [REQUIRED] The port number of target group.
 HealthCheckPath="/"         # [REQUIRED] The health check path of target group. It should end with `/`.
 
 ### ALB Configuration - Access Log
+CreateAccessLogBucket=""    # `Yes`(default) or `No` | [REQUIRED] Create a new S3 bucket or using existed S3 bucket.
 AccessLogBucketName=""      # [REQUIRED] The name of alb access log bucket.
 AccessLogPrefix=""          # [optional] The prefix of alb access log. It cannot start or end with `/`.
 
@@ -57,6 +58,7 @@ aws cloudformation deploy \
         TargetSecurityGroupId=$TargetSecurityGroupId \
         TargetPort=$TargetPort \
         HealthCheckPath=$HealthCheckPath \
+        CreateAccessLogBucket=$CreateAccessLogBucket \
         AccessLogBucketName=$AccessLogBucketName \
         AccessLogPrefix=$AccessLogPrefix \
     --disable-rollback \
@@ -81,6 +83,7 @@ aws cloudformation create-stack \
         ParameterKey=TargetSecurityGroupId,ParameterValue=$TargetSecurityGroupId \
         ParameterKey=TargetPort,ParameterValue=$TargetPort \
         ParameterKey=HealthCheckPath,ParameterValue=$HealthCheckPath \
+        ParameterKey=CreateAccessLogBucket,ParameterValue=$CreateAccessLogBucket \
         ParameterKey=AccessLogBucketName,ParameterValue=$AccessLogBucketName \
         ParameterKey=AccessLogPrefix,ParameterValue=$AccessLogPrefix \
     --disable-rollback \
@@ -112,6 +115,7 @@ $TargetPort="80"            # [REQUIRED] The port number of target group.
 $HealthCheckPath="/"        # [REQUIRED] The health check path of target group. It should end with `/`.
 
 ### ALB Configuration - Access Log
+$CreateAccessLogBucket=""   # `Yes`(default) or `No` | [REQUIRED] Create a new S3 bucket or using existed S3 bucket.
 $AccessLogBucketName=""     # [REQUIRED] The name of alb access log bucket.
 $AccessLogPrefix=""         # [optional] The prefix of alb access log. It cannot start or end with `/`.
 
@@ -135,6 +139,7 @@ aws cloudformation deploy `
         TargetSecurityGroupId=$TargetSecurityGroupId `
         TargetPort=$TargetPort `
         HealthCheckPath=$HealthCheckPath `
+        CreateAccessLogBucket=$CreateAccessLogBucket `
         AccessLogBucketName=$AccessLogBucketName `
         AccessLogPrefix=$AccessLogPrefix `
     --disable-rollback `
@@ -159,6 +164,7 @@ aws cloudformation create-stack `
         ParameterKey=TargetSecurityGroupId,ParameterValue=$TargetSecurityGroupId `
         ParameterKey=TargetPort,ParameterValue=$TargetPort `
         ParameterKey=HealthCheckPath,ParameterValue=$HealthCheckPath `
+        ParameterKey=CreateAccessLogBucket,ParameterValue=$CreateAccessLogBucket `
         ParameterKey=AccessLogBucketName,ParameterValue=$AccessLogBucketName `
         ParameterKey=AccessLogPrefix,ParameterValue=$AccessLogPrefix `
     --disable-rollback `

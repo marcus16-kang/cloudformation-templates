@@ -3,17 +3,17 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: "AWS CodeBuild (Deploy Image) Stack for EKS Rollout CI/CD." 
 
 Parameters:
-  # Stack Configuration
+  ### Stack Configuration
   ProjectName:
     Type: String
     Description: "[REQUIRED] The name of this project."
   
-  # CodeCommit Configuration
+  ### CodeCommit Configuration
   CodeCommitStackName:
     Type: String
     Description: "[REQUIRED] The name of CodeCommit stack."
 
-  # CodeBuild Configuration - General
+  ### CodeBuild Configuration - General
   BuildProjectName:
     Type: String
     Description: "[REQUIRED] The name of CodeBuild project."
@@ -40,10 +40,10 @@ Parameters:
     Type: String
     Description: "[REQUIRED] The image tag of CodeBuild image."
     AllowedValues:
-      - "aws/codebuild/amazonlinux2-x86_64-standard:3.0"
       - "aws/codebuild/amazonlinux2-x86_64-standard:4.0"
-      - "aws/codebuild/amazonlinux2-aarch64-standard:1.0"
+      - "aws/codebuild/amazonlinux2-x86_64-standard:5.0"
       - "aws/codebuild/amazonlinux2-aarch64-standard:2.0"
+      - "aws/codebuild/amazonlinux2-aarch64-standard:3.0"
   
   ArchitectureType:
     Type: String
@@ -57,7 +57,7 @@ Parameters:
     Description: "[REQUIRED] The name of buildspec file for deploy image."
     Default: "deployspec.yaml"
   
-  # CodeBuild Configuration - Artifact
+  ### CodeBuild Configuration - Artifact
   ArtifactBucketName:
     Type: String
     Description: "[REQUIRED] The name of artifact S3 bucket."
@@ -67,7 +67,7 @@ Parameters:
     Description: "[REQUIRED] The name of artifact git branch."
     Default: "main"
   
-  # CodeBuild Configuration - VPC
+  ### CodeBuild Configuration - VPC
   VpcId:
     Type: AWS::EC2::VPC::Id
     Description: "[REQUIRED] The ID of VPC for the CodeBuild."
@@ -80,7 +80,7 @@ Parameters:
     Type: AWS::EC2::SecurityGroup::Id
     Description: "[REQUIRED] The ID of security Group for the CodeBuild."
 
-  # Kubernetes Configuration
+  ### Kubernetes Configuration
   ClusterName:
     Type: String
     Description: "[REQUIRED] The name of EKS cluster."

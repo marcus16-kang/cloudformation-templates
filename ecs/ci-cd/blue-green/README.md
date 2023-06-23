@@ -1,19 +1,117 @@
 # ECS Blue-Green CI/CD
 
 - [ECS Blue-Green CI/CD](#ecs-blue-green-cicd)
-  - [CodeCommit](#codecommit)
-    - [Note](#note)
+  - [Artifact](#artifact)
     - [Linux](#linux)
     - [Windows](#windows)
-  - [CodeBuild](#codebuild)
+  - [CodeCommit](#codecommit)
+    - [Note](#note)
     - [Linux](#linux-1)
     - [Windows](#windows-1)
-  - [CodeDeploy](#codedeploy)
+  - [CodeBuild](#codebuild)
     - [Linux](#linux-2)
     - [Windows](#windows-2)
-  - [CodePipeline](#codepipeline)
+  - [CodeDeploy](#codedeploy)
     - [Linux](#linux-3)
     - [Windows](#windows-3)
+  - [CodePipeline](#codepipeline)
+    - [Linux](#linux-4)
+    - [Windows](#windows-4)
+
+## [Artifact](artifact.yaml)
+
+### Linux
+
+``` bash
+STACK_NAME=""
+PROJECT_NAME=""
+REGION=""
+
+### Artifact Configuration - Bucket
+ArtifactBucketName=""                    # [REQUIRED] The name of artifact S3 bucket.
+ArtifactEncryptionKeyId="alias/aws/s3"   # [optional] The key ARN, id, alias ARN, or name to encrypt artifact S3 bucket. (Default is alias/aws/s3)
+
+### Artifact Configuration - Logging
+ArtifactLoggingDestinationBucketName=""  # [optional] The bucket name of artifact S3 bucket logging destination.
+ArtifactLoggingDestinationPrefix=""      # [optional] The log prefix of artifact S3 bucket logging.
+
+curl -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/ci-cd/artifact.yaml
+
+# Using `deploy`
+aws cloudformation deploy \
+    --template-file ./artifact.yaml \
+    --stack-name $STACK_NAME \
+    --parameter-overrides \
+        ProjectName=$PROJECT_NAME \
+        ArtifactBucketName=$ArtifactBucketName \
+        ArtifactEncryptionKeyId=$ArtifactEncryptionKeyId \
+        ArtifactLoggingDestinationBucketName=$ArtifactLoggingDestinationBucketName \
+        ArtifactLoggingDestinationPrefix=$ArtifactLoggingDestinationPrefix \
+    --disable-rollback \
+    --tags project=$PROJECT_NAME \
+    --region $REGION
+
+# Using `create-stack`
+aws cloudformation create-stack \
+    --template-body file://artifact.yaml \
+    --stack-name $STACK_NAME \
+    --parameters \
+        ParameterKey=ProjectName,ParameterValue=$PROJECT_NAME \
+        ParameterKey=ArtifactBucketName,ParameterValue=$ArtifactBucketName \
+        ParameterKey=ArtifactEncryptionKeyId,ParameterValue=$ArtifactEncryptionKeyId \
+        ParameterKey=ArtifactLoggingDestinationBucketName,ParameterValue=$ArtifactLoggingDestinationBucketName \
+        ParameterKey=ArtifactLoggingDestinationPrefix,ParameterValue=$ArtifactLoggingDestinationPrefix \
+    --disable-rollback \
+    --tags Key=project,Value=$PROJECT_NAME \
+    --region $REGION
+```
+
+### Windows
+
+``` bash
+$STACK_NAME=""
+$PROJECT_NAME=""
+$REGION=""
+
+### Artifact Configuration - Bucket
+$ArtifactBucketName=""                   # [REQUIRED] The name of artifact S3 bucket.
+$ArtifactEncryptionKeyId="alias/aws/s3"  # [optional] The key ARN, id, alias ARN, or name to encrypt artifact S3 bucket. (Default is alias/aws/s3)
+
+
+### Artifact Configuration - Logging
+$ArtifactLoggingDestinationBucketName="" # [optional] The bucket name of artifact S3 bucket logging destination.
+$ArtifactLoggingDestinationPrefix=""     # [optional] The log prefix of artifact S3 bucket logging.
+
+curl.exe -LO https://raw.githubusercontent.com/marcus16-kang/cloudformation-templates/main/eks/ci-cd/artifact.yaml
+
+# Using `deploy`
+aws cloudformation deploy `
+    --template-file ./artifact.yaml `
+    --stack-name $STACK_NAME `
+    --parameter-overrides `
+        ProjectName=$PROJECT_NAME `
+        ArtifactBucketName=$ArtifactBucketName `
+        ArtifactEncryptionKeyId=$ArtifactEncryptionKeyId `
+        ArtifactLoggingDestinationBucketName=$ArtifactLoggingDestinationBucketName `
+        ArtifactLoggingDestinationPrefix=$ArtifactLoggingDestinationPrefix `
+    --disable-rollback `
+    --tags project=$PROJECT_NAME `
+    --region $REGION
+
+# Using `create-stack`
+aws cloudformation create-stack `
+    --template-body file://artifact.yaml `
+    --stack-name $STACK_NAME `
+    --parameters `
+        ParameterKey=ProjectName,ParameterValue=$PROJECT_NAME `
+        ParameterKey=ArtifactBucketName,ParameterValue=$ArtifactBucketName `
+        ParameterKey=ArtifactEncryptionKeyId,ParameterValue=$ArtifactEncryptionKeyId `
+        ParameterKey=ArtifactLoggingDestinationBucketName,ParameterValue=$ArtifactLoggingDestinationBucketName `
+        ParameterKey=ArtifactLoggingDestinationPrefix,ParameterValue=$ArtifactLoggingDestinationPrefix `
+    --disable-rollback `
+    --tags Key=project,Value=$PROJECT_NAME `
+    --region $REGION
+```
 
 ## CodeCommit
 
@@ -432,8 +530,6 @@ ServiceRoleName=""                          # [REQUIRED] The name of CodePipelin
 ### CodePipeline Configuration - Artifact Bucket
 ArtifactBucketName=""                       # [REQUIRED] The name of artifact S3 bucket.
 ArtifactEncryptionKeyId="alias/aws/s3"      # [optional] The key ARN, id, alias ARN, or name to encrypt artifact S3 bucket. (Default is alias/aws/s3)
-ArtifactLoggingDestinationBucketName=""     # [optional] The bucket name of artifact S3 bucket logging destination.
-ArtifactLoggingDestinationPrefix=""         # [optional] The log prefix of artifact S3 bucket logging.
 
 ### CodePipeline Configuration - Deploy
 TaskDefinitionTemplatePath="taskdef.json"   # [optional] The file name of the task definition.
@@ -459,8 +555,6 @@ aws cloudformation deploy \
         ServiceRoleName=$ServiceRoleName \
         ArtifactBucketName=$ArtifactBucketName \
         ArtifactEncryptionKeyId=$ArtifactEncryptionKeyId \
-        ArtifactLoggingDestinationBucketName=$ArtifactLoggingDestinationBucketName \
-        ArtifactLoggingDestinationPrefix=$ArtifactLoggingDestinationPrefix \
         TaskDefinitionTemplatePath=$TaskDefinitionTemplatePath \
         AppSpecTemplatePath=$AppSpecTemplatePath \
         EventBridgeRoleName=$EventBridgeRoleName \
@@ -484,8 +578,6 @@ aws cloudformation create-stack \
         ParameterKey=ServiceRoleName,ParameterValue=$ServiceRoleName \
         ParameterKey=ArtifactBucketName,ParameterValue=$ArtifactBucketName \
         ParameterKey=ArtifactEncryptionKeyId,ParameterValue=$ArtifactEncryptionKeyId \
-        ParameterKey=ArtifactLoggingDestinationBucketName,ParameterValue=$ArtifactLoggingDestinationBucketName \
-        ParameterKey=ArtifactLoggingDestinationPrefix,ParameterValue=$ArtifactLoggingDestinationPrefix \
         ParameterKey=TaskDefinitionTemplatePath,ParameterValue=$TaskDefinitionTemplatePath \
         ParameterKey=AppSpecTemplatePath,ParameterValue=$AppSpecTemplatePath \
         ParameterKey=EventBridgeRoleName,ParameterValue=$EventBridgeRoleName \
@@ -520,8 +612,6 @@ $ServiceRoleName=""                         # [REQUIRED] The name of CodePipelin
 ### CodePipeline Configuration - Artifact Bucket
 $ArtifactBucketName=""                      # [REQUIRED] The name of artifact S3 bucket.
 $ArtifactEncryptionKeyId="alias/aws/s3"     # [optional] The key ARN, id, alias ARN, or name to encrypt artifact S3 bucket. (Default is alias/aws/s3)
-$ArtifactLoggingDestinationBucketName=""    # [optional] The bucket name of artifact S3 bucket logging destination.
-$ArtifactLoggingDestinationPrefix=""        # [optional] The log prefix of artifact S3 bucket logging.
 
 ### CodePipeline Configuration - Deploy
 $TaskDefinitionTemplatePath="taskdef.json"  # [optional] The file name of the task definition.
@@ -547,8 +637,6 @@ aws cloudformation deploy `
         ServiceRoleName=$ServiceRoleName `
         ArtifactBucketName=$ArtifactBucketName `
         ArtifactEncryptionKeyId=$ArtifactEncryptionKeyId `
-        ArtifactLoggingDestinationBucketName=$ArtifactLoggingDestinationBucketName `
-        ArtifactLoggingDestinationPrefix=$ArtifactLoggingDestinationPrefix `
         TaskDefinitionTemplatePath=$TaskDefinitionTemplatePath `
         AppSpecTemplatePath=$AppSpecTemplatePath `
         EventBridgeRoleName=$EventBridgeRoleName `
@@ -572,8 +660,6 @@ aws cloudformation create-stack `
         ParameterKey=ServiceRoleName,ParameterValue=$ServiceRoleName `
         ParameterKey=ArtifactBucketName,ParameterValue=$ArtifactBucketName `
         ParameterKey=ArtifactEncryptionKeyId,ParameterValue=$ArtifactEncryptionKeyId `
-        ParameterKey=ArtifactLoggingDestinationBucketName,ParameterValue=$ArtifactLoggingDestinationBucketName `
-        ParameterKey=ArtifactLoggingDestinationPrefix,ParameterValue=$ArtifactLoggingDestinationPrefix `
         ParameterKey=TaskDefinitionTemplatePath,ParameterValue=$TaskDefinitionTemplatePath `
         ParameterKey=AppSpecTemplatePath,ParameterValue=$AppSpecTemplatePath `
         ParameterKey=EventBridgeRoleName,ParameterValue=$EventBridgeRoleName `

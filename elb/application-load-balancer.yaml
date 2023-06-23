@@ -72,6 +72,14 @@ Parameters:
     Default: /
   
   ### ALB Configuration - Access Log
+  CreateAccessLogBucket:
+    Type: String
+    Description: "`Yes`(default) or `No` | [REQUIRED] Create a new S3 bucket or using existed S3 bucket."
+    AllowedValues:
+      - "Yes"
+      - "No"
+    Default: "Yes"
+  
   AccessLogBucketName:
     Type: String
     Description: "[REQUIRED] The name of alb access log bucket."
@@ -114,6 +122,7 @@ Metadata:
       - Label:
           default: ALB Configuration - Access Log
         Parameters:
+          - CreateAccessLogBucket
           - AccessLogBucketName
           - AccessLogPrefix
 
@@ -165,10 +174,8 @@ Mappings:
       accountid: "507241528517"
 
 Conditions:
-  IsInternal: !Equals [!Ref Scheme, internal]
-
   UseTargetSecurityGroup: !Not [!Equals [!Ref TargetSecurityGroupId, ""]]
-  
+  CreateNewSecurityGroup: !Equals [!Ref CreateAccessLogBucket, "Yes"]
   UseAccessLogPrefix: !Not [!Equals [!Ref AccessLogPrefix, ""]]
 
 Resources:
@@ -224,6 +231,7 @@ Resources:
 
   AccessLogBucket:
     Type: AWS::S3::Bucket
+    Condition: CreateNewSecurityGroup
     Properties:
       AccessControl: Private
       BucketEncryption:
@@ -273,7 +281,10 @@ Resources:
   AccessLogBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref AccessLogBucket
+      Bucket: !If
+        - CreateNewSecurityGroup
+        - !Ref AccessLogBucket
+        - !Ref AccessLogBucketName
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -285,7 +296,10 @@ Resources:
             Action: s3:PutObject
             Resource: !Sub
               - "arn:aws:s3:::${bucket_name}/${prefix}AWSLogs/${account_id}/*"
-              - bucket_name: !Ref AccessLogBucket
+              - bucket_name: !If
+                  - CreateNewSecurityGroup
+                  - !Ref AccessLogBucket
+                  - !Ref AccessLogBucketName
                 prefix: !If
                   - UseAccessLogPrefix
                   - !Sub "${AccessLogPrefix}/"
@@ -303,7 +317,10 @@ Resources:
         - Key: access_logs.s3.enabled
           Value: true                               # `false`(defualt) or `true`
         - Key: access_logs.s3.bucket
-          Value: !Ref AccessLogBucket
+          Value: !If
+            - CreateNewSecurityGroup
+            - !Ref AccessLogBucket
+            - !Ref AccessLogBucketName
         - Key: access_logs.s3.prefix
           Value: !Ref AccessLogPrefix
         # - Key: ipv6.deny_all_igw_traffic

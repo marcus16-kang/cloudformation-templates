@@ -1,0 +1,139 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ### Stack Configuration
+  ProjectName:
+    Type: String
+    Description: "[REQUIRED] The name of this project."
+  
+  ### Artifact Configuration - Bucket
+  ArtifactBucketName:
+    Type: String
+    Description: "[REQUIRED] The name of artifact S3 bucket."
+  
+  ArtifactEncryptionKeyId:
+    Type: String
+    Description: "[optional] The key ARN, id, alias ARN, or name to encrypt artifact S3 bucket. (Default is alias/aws/s3)"
+    Default: "alias/aws/s3"
+  
+  ### Artifact Configuration - Logging
+  ArtifactLoggingDestinationBucketName:
+    Type: String
+    Description: "[optional] The bucket name of artifact S3 bucket logging destination."
+    Default: ""
+  
+  ArtifactLoggingDestinationPrefix:
+    Type: String
+    Description: "[optional] The log prefix of artifact S3 bucket logging."
+    Default: ""
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Configuration
+        Parameters:
+          - ProjectName
+      
+      - Label:
+          default: Artifact Configuration - Bucket
+        Parameters:
+          - ArtifactBucketName
+          - ArtifactEncryptionKeyId
+      
+      - Label:
+          default: Artifact Configuration - Logging
+        Parameters:
+          - ArtifactLoggingDestinationBucketName
+          - ArtifactLoggingDestinationPrefix
+
+Conditions:
+  UseArtifactEncryptionKeyId: !Not [ !Equals [!Ref ArtifactEncryptionKeyId, ""] ]
+  UseArtifactLogging: !Not [ !Equals [!Ref ArtifactLoggingDestinationBucketName, ""] ]
+  UseArtifactLoggingPrefix: !Not [ !Equals [!Ref ArtifactLoggingDestinationPrefix, ""] ]
+
+Resources:
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !If
+                - UseArtifactEncryptionKeyId
+                - !Ref ArtifactEncryptionKeyId
+                - alias/aws/s3
+      BucketName: !Ref ArtifactBucketName
+      IntelligentTieringConfigurations:
+        - Id: intelligence-tiering
+          Status: Enabled
+          Tierings:
+            - AccessTier: ARCHIVE_ACCESS
+              Days: 90
+            - AccessTier: DEEP_ARCHIVE_ACCESS 
+              Days: 180
+      LifecycleConfiguration:
+        Rules:
+          - Id: intelligence-tiering
+            NoncurrentVersionTransitions:
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 30
+              - StorageClass: ONEZONE_IA
+                TransitionInDays: 90
+              - StorageClass: GLACIER
+                TransitionInDays: 180
+              - StorageClass: DEEP_ARCHIVE
+                TransitionInDays: 360
+            Status: Enabled
+            Transitions:
+              - StorageClass: INTELLIGENT_TIERING
+                TransitionInDays: 0
+      LoggingConfiguration: !If
+        - UseArtifactLogging
+        - DestinationBucketName: !Ref ArtifactLoggingDestinationBucketName
+          LogFilePrefix: !If
+            - UseArtifactLoggingPrefix
+            - !Ref ArtifactLoggingDestinationPrefix
+            - !Ref AWS::NoValue
+        - !Ref AWS::NoValue
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: project
+          Value: !Ref ProjectName
+      VersioningConfiguration:
+        Status: Enabled
+
+  ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Id: SSEAndSSLPolicy
+        Statement:
+        - Sid: DenyUnEncryptedObjectUploads
+          Effect: Deny
+          Principal: "*"
+          Action: s3:PutObject
+          Resource: !Sub arn:aws:s3:::${ArtifactBucket}/*
+          Condition:
+            StringNotEquals:
+              s3:x-amz-server-side-encryption: aws:kms
+        - Sid: DenyInsecureConnections
+          Effect: Deny
+          Principal: "*"
+          Action: s3:*
+          Resource: !Sub arn:aws:s3:::${ArtifactBucket}/*
+          Condition:
+            Bool:
+              aws:SecureTransport: 'false'
